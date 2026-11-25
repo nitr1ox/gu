@@ -6,6 +6,7 @@ const oauth = require('./oauth');
 const restore = require('./restore');
 const verifymsg = require('./verifymsg');
 const manager = require('./botmanager');
+const services = require('./services');
 const { encrypt } = require('./crypto');
 const { sign, safeEq, parseCookies } = require('./util');
 
@@ -210,27 +211,13 @@ module.exports = () => {
   }));
 
   api.post('/guilds/:id/restore', guildGuard, wrap(async (req, res) => {
-    const source = String(req.body.source || '');
-    if (source === req.guild.id || !source) return res.status(400).json({ error: 'La source doit être un autre serveur.' });
-    if (source !== 'all') {
-      const src = await db.getGuild(source);
-      if (!(await restore.canManage(req.session.user_id, source))) {
-        return res.status(403).json({ error: 'Tu n\'as pas configuré le bot sur ce serveur source.' });
-      }
-      if (src.bot_id !== req.bot.id) {
-        return res.status(400).json({ error: 'Ce serveur utilisait un autre bot : invite ce même bot ici pour restaurer.' });
-      }
+    try {
+      const jobId = await services.startRestore({ userId: req.session.user_id, guildId: req.guild.id, source: req.body.source });
+      res.json({ jobId });
+    } catch (e) {
+      if (e instanceof services.ApiError) return res.status(e.status).json({ error: e.message });
+      throw e;
     }
-    if (restore.isRunning(req.guild.id)) return res.status(409).json({ error: 'Une restauration est déjà en cours.' });
-
-    const jobId = await db.createJob({ user_id: req.session.user_id, source, target: req.guild.id,
-      status: 'running', total: 0, done: 0, added: 0, already: 0, failed: 0, created: Date.now() });
-    restore.run({ source, target: req.guild.id,
-        bot: { id: req.bot.id, token: req.bot.token, secret: req.bot.secret },
-        onProgress: (s) => db.updateJob(jobId, s) })
-      .then(() => db.updateJob(jobId, { status: 'done' }))
-      .catch((e) => { console.error(e); db.updateJob(jobId, { status: 'error' }); });
-    res.json({ jobId });
   }));
 
   api.get('/jobs/:jobId', wrap(async (req, res) => {

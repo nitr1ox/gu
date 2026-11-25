@@ -69,6 +69,10 @@ module.exports = {
   count: async (guildId) =>
     (await col('members').where('guild_id', '==', guildId).count().get()).data().count,
 
+  // --- panels crees via l'API ---
+  savePanel: (userId, data) => col('panels').doc(userId).set(data, { merge: true }),
+  getPanel: async (userId) => withId(await col('panels').doc(userId).get()),
+
   // --- sessions du panel ---
   createSession: (sid, data) => col('sessions').doc(sid).set(data),
   getSession: async (sid) => {

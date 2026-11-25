@@ -59,6 +59,7 @@ exports.startWeb = () => {
     }
   });
 
+  app.use('/v1', require('./api')());
   app.use(require('./panel')());
   app.get('/', (_req, res) => res.redirect('/panel/'));
   app.listen(process.env.PORT || 3000, () => console.log('Web prêt'));
