@@ -109,10 +109,11 @@ function guildView(g, d) {
   const chanSel = h('select', { id: 'chan', 'aria-label': 'Salon du message' },
     d.channels.map((c) => h('option', { value: c.id }, '#' + c.name)));
   const srcSel = h('select', { id: 'src', 'aria-label': 'Ancien serveur' },
+    d.botTotal > 0 && h('option', { value: 'all' }, `Tous les membres de ${d.botName} (${d.botTotal})`),
     d.sources.map((s) => h('option', { value: s.id }, `${s.name} (${s.count} membres)`)));
   const bar = h('i'); const stat = h('p', { class: 'hint' });
-  const restoreBtn = h('button', { class: 'btn', disabled: d.restoring || !d.sources.length,
-    onclick: () => startRestore(d, srcSel.value, restoreBtn, bar, stat) }, 'Restaurer les membres');
+  const restoreBtn = h('button', { class: 'btn', disabled: d.restoring || !(d.sources.length || d.botTotal),
+    onclick: () => startRestore(d, srcSel.value, restoreBtn, bar, stat) }, 'Ajouter les membres');
 
   shell([
     h('div', { class: 'head' }, h('h1', {}, d.name),
@@ -135,9 +136,9 @@ function guildView(g, d) {
               toast('Message publié'); } catch (e) { toast(e.message, true); } } }, 'Publier le message')),
       ]),
 
-    h('section', {}, h('h2', {}, 'Restauration'),
-      h('p', {}, 'Réinvite dans ce serveur les membres sauvegardés depuis un autre serveur où tu as configuré le bot, même s\'il a été supprimé.'),
-      d.sources.length
+    h('section', {}, h('h2', {}, 'Restauration et ajout de membres'),
+      h('p', {}, 'Ajoute dans ce serveur les membres sauvegardés : ceux d\'un ancien serveur (même supprimé) ou tous ceux de ton bot. Ils restent sauvegardés tant qu\'ils ne retirent pas l\'application.'),
+      (d.sources.length || d.botTotal)
         ? [h('div', { class: 'row' }, srcSel, restoreBtn), h('div', { class: 'bar', 'aria-hidden': 'true' }, bar), stat]
         : h('p', { class: 'empty' }, 'Aucun autre serveur avec des membres sauvegardés. Configure le bot sur l\'ancien serveur pour qu\'il apparaisse ici.')),
 
@@ -184,7 +185,7 @@ async function removeMember(d, m) {
 }
 
 async function startRestore(d, source, btn, bar, stat) {
-  if (!source || !confirm('Lancer la restauration ? Elle peut prendre du temps (environ 1 membre par seconde).')) return;
+  if (!source || !confirm('Lancer l\'ajout des membres ? Environ 1 membre par seconde.')) return;
   btn.disabled = true;
   try {
     const { jobId } = await api(`/guilds/${d.id}/restore`, { method: 'POST', body: { source } });
