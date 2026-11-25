@@ -179,3 +179,11 @@ input[type=number] { width: 100%; max-width: 10rem; background: var(--surface); 
 .check input { margin-top: .25rem; width: 1.05rem; height: 1.05rem; accent-color: var(--accent); flex: none; }
 .check span { display: grid; gap: .1rem; }
 .check small { color: var(--muted); font-size: .82rem; }
+
+/* onglets du serveur */
+.tabs { display: flex; gap: .25rem; overflow-x: auto; margin: 0 0 1.25rem; border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+.tab { display: inline-flex; align-items: center; gap: .45rem; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: .6rem .85rem; color: var(--muted); font-weight: 600; font-size: .92rem; cursor: pointer; white-space: nowrap; border-radius: 6px 6px 0 0; }
+.tab:hover { color: var(--ink); background: var(--accent-soft); }
+.tab[aria-selected=true] { color: var(--ink); border-bottom-color: var(--ink); }
+.tab .count { font-size: .72rem; font-weight: 600; padding: .05rem .45rem; border-radius: 99px; background: var(--accent-soft); color: var(--muted); font-variant-numeric: tabular-nums; }
+.tab[aria-selected=true] .count { background: var(--ink); color: var(--bg); }

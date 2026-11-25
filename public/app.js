@@ -1,6 +1,7 @@
 const app = document.getElementById('app');
 const toastEl = document.getElementById('toast');
 let me = null, current = null, detail = null, poll = null;
+let guildTab = 'general', guildTabFor = null;
 
 const h = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
@@ -160,10 +161,24 @@ function guildView(g, d) {
   const schedBtn = h('button', { class: 'btn', disabled: !canRestore, onclick: () => scheduleRestore(d, srcSel.value, whenIn) }, 'Planifier');
   const STATUS = { pending: 'En attente', running: 'Lancement…', started: 'Lancée', failed: 'Échec', missed: 'Manquée', cancelled: 'Annulée' };
 
-  shell([
-    h('div', { class: 'head' }, h('h1', {}, d.name),
-      h('p', { class: 'sub' }, `${plural(d.saved, 'membre')} ${d.saved > 1 ? 'sauvegardés' : 'sauvegardé'}`)),
+  const needRole = (what) => card(null, h('p', { class: 'empty' },
+    `Choisis d'abord le rôle de vérification (onglet Général) pour configurer ${what}.`));
+  const pending = (d.schedules || []).filter((x) => x.status === 'pending').length;
+  const TABS = [
+    ['general', 'Général'],
+    ['page', 'Page de vérification'],
+    ['protection', 'Protections'],
+    ['restore', 'Restauration', pending || null],
+    ['members', 'Membres', d.saved || null],
+    ['activity', 'Sécurité et journal'],
+  ];
+  if (guildTabFor !== d.id) { guildTab = 'general'; guildTabFor = d.id; }
+  const tabBar = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Sections du serveur' },
+    TABS.map(([key, label, n]) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(key === guildTab),
+      onclick: () => { guildTab = key; guildView(g, d); } }, label, n != null && h('span', { class: 'count' }, String(n)))));
 
+  const panes = {
+    general: [
     h('div', { class: 'stats' },
       h('div', { class: 'stat' }, h('b', {}, String(d.saved)), h('span', {}, 'Membres sauvegardés')),
       h('div', { class: 'stat' }, h('b', {}, String(d.sources.length)), h('span', {}, 'Autres serveurs')),
@@ -185,10 +200,14 @@ function guildView(g, d) {
             try { await api(`/guilds/${d.id}/announce`, { method: 'POST', body: { channelId: chanSel.value } });
               toast('Message publié'); } catch (e) { fail(e); } } }, 'Publier le message')),
       ]),
-
-    d.verifyUrl && pageCard(d),
-    d.verifyUrl && protectionCard(d),
-
+    ],
+    page: [
+      d.verifyUrl ? pageCard(d) : needRole('la page'),
+    ],
+    protection: [
+      d.verifyUrl ? protectionCard(d) : needRole('les protections'),
+    ],
+    restore: [
     card('Restauration et ajout de membres',
       h('p', { class: 'lead hint' }, 'Ajoute dans ce serveur les membres sauvegardés : ceux d\'un ancien serveur (même supprimé) ou tous ceux de ton bot. Ils restent sauvegardés tant qu\'ils ne retirent pas l\'application.'),
       canRestore
@@ -197,7 +216,6 @@ function guildView(g, d) {
           h('div', { class: 'row' }, whenIn, schedBtn),
           h('p', { class: 'hint', style: 'margin:.5rem 0 0' }, `Heure de ton navigateur${tz ? ' (' + tz + ')' : ''}. Entre 1 minute et 30 jours à l'avance. Les droits (admin, bot présent, source) sont revérifiés au moment du lancement, et tu peux annuler avant.`)]
         : h('p', { class: 'empty' }, 'Aucun autre serveur avec des membres sauvegardés. Configure le bot sur l\'ancien serveur pour qu\'il apparaisse ici.')),
-
     d.schedules && d.schedules.length > 0 && card('Restaurations planifiées',
       h('div', { class: 'tablewrap' }, h('table', {},
         h('thead', {}, h('tr', {}, h('th', {}, 'Heure'), h('th', {}, 'Source'), h('th', {}, 'Statut'), h('th', {}, ''))),
@@ -206,24 +224,8 @@ function guildView(g, d) {
           h('td', { class: 'wrap' }, `${x.source_name} (${x.expected})`),
           h('td', { class: 'wrap' + (x.status === 'failed' || x.status === 'missed' ? ' warn' : '') }, STATUS[x.status] || x.status, x.error ? ` — ${x.error}` : ''),
           h('td', { class: 'act' }, x.status === 'pending' && h('button', { class: 'btn danger', onclick: () => cancelSchedule(d, x) }, 'Annuler')))))))),
-
-    card('Alertes de sécurité',
-      h('p', { class: 'lead hint' }, `Le bot poste un message dans ce salon quand une restauration de ${d.massRestore} membres ou plus est lancée, quand des membres sont retirés en rafale, ou quand un bot est supprimé avec ses données. Choisis un salon réservé aux admins.`),
-      h('div', { class: 'row' }, alertSel,
-        h('button', { class: 'btn', onclick: async () => {
-          try { await api(`/guilds/${d.id}/alerts`, { method: 'POST', body: { channelId: alertSel.value } });
-            toast(alertSel.value ? 'Alertes activées (message de test envoyé)' : 'Alertes désactivées'); select(d.id); } catch (e) { fail(e); } } }, 'Enregistrer'))),
-
-    card('Journal d\'activité',
-      d.audit.length
-        ? h('div', { class: 'tablewrap' }, h('table', {},
-          h('thead', {}, h('tr', {}, h('th', {}, 'Date'), h('th', {}, 'Qui'), h('th', {}, 'Action'))),
-          h('tbody', {}, d.audit.map((a) => h('tr', {},
-            h('td', {}, stamp(a.ts)),
-            h('td', {}, a.actor, a.via === 'api' ? ' (API)' : a.via === 'schedule' ? ' (planifié)' : ''),
-            h('td', { class: 'wrap' + (DANGER.has(a.action) ? ' warn' : '') }, (ACTIONS[a.action] || (() => a.action))(a.detail)))))))
-        : h('p', { class: 'empty' }, 'Aucune activité enregistrée pour l\'instant.')),
-
+    ],
+    members: [
     card('Membres',
       d.members.length
         ? [
@@ -238,6 +240,32 @@ function guildView(g, d) {
           d.saved > d.members.length && h('p', { class: 'hint', style: 'margin:.75rem 0 0' }, `Les ${d.members.length} premiers sur ${d.saved} sont affichés.`),
         ]
         : h('p', { class: 'empty' }, 'Personne ne s\'est encore vérifié. Partage le lien de vérification.')),
+    ],
+    activity: [
+    card('Alertes de sécurité',
+      h('p', { class: 'lead hint' }, `Le bot poste un message dans ce salon quand une restauration de ${d.massRestore} membres ou plus est lancée, quand des membres sont retirés en rafale, ou quand un bot est supprimé avec ses données. Choisis un salon réservé aux admins.`),
+      h('div', { class: 'row' }, alertSel,
+        h('button', { class: 'btn', onclick: async () => {
+          try { await api(`/guilds/${d.id}/alerts`, { method: 'POST', body: { channelId: alertSel.value } });
+            toast(alertSel.value ? 'Alertes activées (message de test envoyé)' : 'Alertes désactivées'); select(d.id); } catch (e) { fail(e); } } }, 'Enregistrer'))),
+    card('Journal d\'activité',
+      d.audit.length
+        ? h('div', { class: 'tablewrap' }, h('table', {},
+          h('thead', {}, h('tr', {}, h('th', {}, 'Date'), h('th', {}, 'Qui'), h('th', {}, 'Action'))),
+          h('tbody', {}, d.audit.map((a) => h('tr', {},
+            h('td', {}, stamp(a.ts)),
+            h('td', {}, a.actor, a.via === 'api' ? ' (API)' : a.via === 'schedule' ? ' (planifié)' : ''),
+            h('td', { class: 'wrap' + (DANGER.has(a.action) ? ' warn' : '') }, (ACTIONS[a.action] || (() => a.action))(a.detail)))))))
+        : h('p', { class: 'empty' }, 'Aucune activité enregistrée pour l\'instant.')),
+    ],
+  };
+
+  shell([
+    h('div', { class: 'head' }, h('h1', {}, d.name),
+      h('p', { class: 'sub' }, `${plural(d.saved, 'membre')} ${d.saved > 1 ? 'sauvegardés' : 'sauvegardé'}`)),
+
+    tabBar,
+    ...panes[guildTab],
   ]);
 }
 
@@ -393,7 +421,7 @@ function noBotView(g) {
 async function select(id) {
   clearInterval(poll);
   current = id;
-  if (id === 'bots') return botsView();
+  if (id === 'bots') { guildTabFor = null; return botsView(); }
   const g = me.guilds.find((x) => x.id === id);
   if (!g.botIn) return noBotView(g);
   try {
