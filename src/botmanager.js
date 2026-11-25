@@ -1,11 +1,10 @@
-// Fait tourner un bot Discord par client (jeton fourni par chaque utilisateur depuis le panel).
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const db = require('./db');
 const { encrypt, decrypt } = require('./crypto');
 const oauth = require('./oauth');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const bots = new Map(); // botId -> { client, owner_id, token, secret }
+const bots = new Map();
 
 async function launch({ id, token, secret, owner_id }) {
   await stop(id);
@@ -20,7 +19,7 @@ async function launch({ id, token, secret, owner_id }) {
     client.destroy();
     throw Object.assign(new Error('Le Client ID ne correspond pas à ce token.'), { code: 'IdMismatch' });
   }
-  await client.application.commands.set([]).catch(() => {}); // retire d'anciennes commandes (ex. /deletemydata)
+  await client.application.commands.set([]).catch(() => {});
   bots.set(id, { client, owner_id, token, secret });
   return client.user.username;
 }
@@ -39,7 +38,6 @@ async function bootAll() {
   }
 }
 
-// Renouvelle les jetons des membres qui expirent dans moins de 48 h
 async function refreshLoop() {
   try {
     const rows = await db.expiringBefore(Math.floor(Date.now() / 1000) + 48 * 3600);
@@ -51,7 +49,6 @@ async function refreshLoop() {
         await db.saveMember({ ...m, access_token: encrypt(t.access_token), refresh_token: encrypt(t.refresh_token),
           expires_at: Math.floor(Date.now() / 1000) + t.expires_in });
       } catch (e) {
-        // Supprimé uniquement si le membre a retiré l'application (invalid_grant). Toute autre erreur : on réessaie plus tard.
         if (e.code === 'invalid_grant') await db.deleteMember(m.user_id, m.guild_id);
       }
       await sleep(500);

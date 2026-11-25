@@ -26,7 +26,6 @@ body{font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;background:var
 h1{font-size:1.25rem;margin:0 0 8px}p{margin:0;color:var(--muted)}
 </style><body><main class="c"><h1>${title}</h1><p>${body}</p></main></body></html>`;
 
-// Retrouve le bot (en ligne) qui gere ce serveur
 const botFor = async (guildId) => {
   const cfg = await db.getGuild(guildId);
   const bot = cfg?.bot_id && manager.get(cfg.bot_id);
@@ -36,14 +35,12 @@ const botFor = async (guildId) => {
 exports.startWeb = () => {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 1)); // 1 = un proxy devant (Render, Heroku...). 0 si exposé directement.
+  app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 1));
   app.use(headers);
 
-  // Vérification publique : limite par IP
   const publicLimit = limiter({ windowMs: 60000, max: 30 });
   app.use(['/verify', '/callback'], publicLimit);
 
-  // Page d'accueil de vérification (personnalisable), puis redirection vers Discord au clic
   const logoUrl = (guildId, cfg) => (cfg.verify_page?.logo_v ? `/verify/logo/${guildId}?v=${cfg.verify_page.logo_v}` : null);
 
   app.get('/verify', async (req, res) => {
@@ -62,7 +59,6 @@ exports.startWeb = () => {
     const guildId = String(req.query.guild || '');
     const found = await botFor(guildId);
     if (!found?.cfg.role_id) return res.status(404).send(page('Serveur inconnu', 'Ce serveur n\'est pas configuré ou son bot est hors ligne.'));
-    // Le scope « email » n'est demandé que si le serveur a choisi d'enregistrer l'email
     const scope = protection.resolve(found.cfg.protection).log_email ? 'identify guilds.join email' : 'identify guilds.join';
     res.redirect(oauth.authUrl({ clientId: found.id }, makeState(guildId), { scope }));
   });
@@ -82,7 +78,6 @@ exports.startWeb = () => {
       const t = await oauth.exchangeCode({ clientId: found.id, clientSecret: found.bot.secret }, String(req.query.code));
       const user = await oauth.getUser(t.access_token);
 
-      // Protections : refus AVANT d'enregistrer le jeton du membre
       const blocked = await protection.check({ cfg: found.cfg, guildId, userId: user.id, ip: req.ip });
       if (blocked) {
         await oauth.revoke({ clientId: found.id, clientSecret: found.bot.secret }, t.access_token);
@@ -97,7 +92,6 @@ exports.startWeb = () => {
         guild_id: guildId,
         bot_id: found.id,
         username: user.username,
-        // Journal choisi par le serveur (chiffré). Absent si l'option est désactivée.
         ...(pr.log_ip && req.ip ? { ip: encrypt(req.ip) } : {}),
         ...(pr.log_email && user.email ? { email: encrypt(user.email) } : {}),
         access_token: encrypt(t.access_token),
@@ -119,7 +113,6 @@ exports.startWeb = () => {
 
   app.use('/v1', require('./api')());
   app.use(require('./panel')());
-  // Page d'accueil publique (site/index.html + home.css)
   app.use(express.static(path.join(__dirname, '..', 'site'), { index: 'index.html', extensions: false }));
   app.listen(process.env.PORT || 3000, () => console.log('Web prêt'));
 };

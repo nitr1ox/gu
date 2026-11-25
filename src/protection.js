@@ -1,5 +1,3 @@
-// Protections de la vérification : âge minimum du compte, anti-alts (même IP), anti-VPN, liste noire.
-// Les contrôles tournent AVANT l'enregistrement du jeton : un membre refusé n'est jamais sauvegardé.
 const crypto = require('crypto');
 const db = require('./db');
 
@@ -13,7 +11,6 @@ exports.MAX_AGE_DAYS = MAX_AGE_DAYS;
 
 exports.DEFAULTS = { min_age_days: 0, anti_alt: false, anti_vpn: false, log_ip: false, log_email: false };
 
-// Valeurs effectives (la liste noire est gérée à part)
 exports.resolve = (stored = {}) => ({
   min_age_days: Number(stored?.min_age_days) || 0,
   anti_alt: !!stored?.anti_alt,
@@ -22,7 +19,6 @@ exports.resolve = (stored = {}) => ({
   log_email: !!stored?.log_email,
 });
 
-// body venant du panel -> réglages à stocker. Lève une Error affichable si invalide.
 exports.sanitize = (body = {}) => {
   const days = Number(body.min_age_days ?? 0);
   if (!Number.isInteger(days) || days < 0 || days > MAX_AGE_DAYS) {
@@ -34,15 +30,12 @@ exports.sanitize = (body = {}) => {
 
 exports.isSnowflake = (v) => /^\d{17,20}$/.test(String(v));
 
-// Date de création du compte, déduite de l'ID Discord (snowflake)
 exports.createdAt = (userId) => Number((BigInt(userId) >> 22n) + DISCORD_EPOCH);
 
-// Empreinte de l'IP : on ne stocke jamais l'IP en clair. Liée au serveur pour ne pas pouvoir recouper entre serveurs.
 const ipHash = (guildId, ip) =>
   crypto.createHmac('sha256', process.env.STATE_SECRET).update(`${guildId}|${ip}`).digest('hex').slice(0, 40);
 exports.ipHash = ipHash;
 
-// Anti-VPN via proxycheck.io (clé optionnelle : PROXYCHECK_KEY). En cas d'erreur du service : on laisse passer (fail-open).
 async function isVpn(ip) {
   try {
     const qs = new URLSearchParams({ vpn: '1', risk: '1' });
@@ -68,8 +61,6 @@ const MESSAGES = {
 };
 exports.MESSAGES = MESSAGES;
 
-// Renvoie null si tout est bon, sinon { reason: 'blacklist'|'age'|'vpn'|'alt', detail? }.
-// cfg = document du serveur (Firestore). Ne lève pas d'erreur.
 exports.check = async ({ cfg, guildId, userId, ip }) => {
   if ((cfg.blacklist || []).includes(userId)) return { reason: 'blacklist' };
 
@@ -78,7 +69,7 @@ exports.check = async ({ cfg, guildId, userId, ip }) => {
     const ageDays = (Date.now() - exports.createdAt(userId)) / 86400000;
     if (ageDays < p.min_age_days) return { reason: 'age', detail: { age_days: Math.floor(ageDays), min: p.min_age_days } };
   }
-  if ((p.anti_vpn || p.anti_alt) && isLocalIp(ip)) return null; // IP inexploitable (dev local) : on ne bloque pas
+  if ((p.anti_vpn || p.anti_alt) && isLocalIp(ip)) return null;
   if (p.anti_vpn && (await isVpn(ip))) return { reason: 'vpn' };
   if (p.anti_alt) {
     const other = await db.getIpOwner(guildId, ipHash(guildId, ip));
@@ -87,7 +78,6 @@ exports.check = async ({ cfg, guildId, userId, ip }) => {
   return null;
 };
 
-// À appeler une fois la vérification réussie : mémorise l'empreinte IP du membre (seulement si l'anti-alts est actif)
 exports.remember = async ({ cfg, guildId, userId, ip }) => {
   if (!exports.resolve(cfg.protection).anti_alt || isLocalIp(ip)) return;
   await db.saveIp(guildId, ipHash(guildId, ip), userId);

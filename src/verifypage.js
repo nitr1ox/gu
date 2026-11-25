@@ -1,5 +1,3 @@
-// Page de vérification personnalisable : textes, couleurs et logo choisis par le propriétaire du serveur.
-// Tout ce qui vient de l'utilisateur est validé à l'enregistrement et échappé au rendu.
 const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const LIMITS = { title: 60, text: 600, button: 30, successTitle: 60, successText: 300 };
@@ -10,19 +8,18 @@ exports.DEFAULTS = {
   button: 'Se vérifier',
   successTitle: 'Vérifié',
   successText: 'Tu peux retourner sur Discord.',
-  accent: null, // null = couleur par défaut
-  bg: null,     // null = clair/sombre automatique
+  accent: null,
+  bg: null,
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const clean = (v, max) => String(v ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, max);
 
-// body (venant du panel) -> objet à stocker. Lève une Error avec message affichable si invalide.
 exports.sanitize = (body = {}) => {
   const out = {};
   for (const [k, max] of Object.entries(LIMITS)) {
     const v = clean(body[k], max);
-    out[k] = v || null; // vide = valeur par défaut
+    out[k] = v || null;
   }
   for (const k of ['accent', 'bg']) {
     const v = String(body[k] ?? '').trim();
@@ -33,7 +30,6 @@ exports.sanitize = (body = {}) => {
   return out;
 };
 
-// Valeurs effectives (défauts appliqués)
 exports.resolve = (stored = {}) => {
   const d = exports.DEFAULTS;
   const r = {};
@@ -41,7 +37,6 @@ exports.resolve = (stored = {}) => {
   return r;
 };
 
-// Luminance relative WCAG et couleur de texte lisible
 const lum = (hex) => {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
@@ -50,7 +45,6 @@ const lum = (hex) => {
 const readable = (bg) => (lum(bg) > 0.4 ? '#111111' : '#ffffff');
 exports.readable = readable;
 
-// Variables CSS de la page selon les couleurs choisies
 const cssVars = (p) => {
   const accent = p.accent || '#4a5232';
   let base = ':root{--bg:#f4f5f1;--card:#fff;--ink:#1b1f16;--muted:#5a6150;--line:#e1e4d8}'
@@ -79,13 +73,11 @@ h1{font-size:1.4rem;line-height:1.25;margin:0 0 10px;overflow-wrap:anywhere}
 .notice p{font-size:inherit;margin:0 0 6px}
 @media(prefers-reduced-motion:reduce){.btn{transition:none}}`;
 
-// Mention affichée en permanence, non modifiable : le membre doit savoir ce qu'il autorise.
 const NOTICE = '<div class="notice"><p>En autorisant l\'application, tu permets à ce serveur de te réinviter automatiquement s\'il est un jour perdu, '
   + 'et à son propriétaire de t\'ajouter à ses autres serveurs où ce bot est présent.</p>'
   + '<p>Le bot enregistre ton ID Discord, ton pseudo et cette autorisation. Elle ne donne accès ni à ton mot de passe, ni à tes messages, ni à ton compte. '
   + 'Tu peux la retirer à tout moment dans Discord (Paramètres, Applications autorisées) : tes données sont alors supprimées automatiquement sous quelques jours.</p></div>';
 
-// Si l'anti-alts ou l'anti-VPN est actif, le membre doit en être informé (adresse IP utilisée pour le contrôle)
 const IP_NOTE = '<p>Ce serveur contrôle ta connexion (VPN, comptes multiples) : une empreinte chiffrée de ton adresse IP peut être conservée, jamais l\'adresse elle-même.</p>';
 const logNote = (ip, email) => {
   const what = [ip && 'ton adresse IP', email && 'ton adresse e-mail'].filter(Boolean).join(' et ');
@@ -93,7 +85,6 @@ const logNote = (ip, email) => {
 };
 const NOTICE_FN = (ipCheck, logIp, logEmail) => NOTICE.replace('</div>', `${ipCheck ? IP_NOTE : ''}${logNote(logIp, logEmail)}</div>`);
 
-// kind : 'start' (page d'accueil) | 'done' (après vérification)
 exports.render = ({ stored, guildId, guildName, logoUrl, kind = 'start', ipCheck = false, logIp = false, logEmail = false }) => {
   const p = exports.resolve(stored);
   const title = fill(kind === 'done' ? p.successTitle : p.title, guildName);
@@ -109,7 +100,6 @@ exports.render = ({ stored, guildId, guildName, logoUrl, kind = 'start', ipCheck
     + `<style>${cssVars(p)}${STYLE}</style><body><main class="c">${logo}<h1>${esc(title)}</h1>${paragraphs(body)}${action}</main></body></html>`;
 };
 
-// Logo : formats raster uniquement (jamais de SVG, qui peut contenir du script)
 exports.LOGO_MAX = 200 * 1024;
 exports.sniffImage = (buf) => {
   if (!Buffer.isBuffer(buf) || buf.length < 12) return null;

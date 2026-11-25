@@ -16,15 +16,13 @@ const { limiter, noStore } = require('./security');
 const { encrypt } = require('./crypto');
 const { sign, safeEq, parseCookies } = require('./util');
 
-const SESSION_TTL = 7 * 24 * 3600; // secondes
+const SESSION_TTL = 7 * 24 * 3600;
 const MAX_BOTS_PER_USER = Number(process.env.MAX_BOTS_PER_USER || 3);
 const origin = () => new URL(process.env.REDIRECT_URI).origin;
 const panelRedirect = () => `${origin()}/panel/callback`;
 const isSecure = () => process.env.REDIRECT_URI.startsWith('https');
 const isAdmin = (g) => g.owner || (BigInt(g.permissions) & 0x8n) === 0x8n;
-// Application Discord du panel (connexion uniquement, pas besoin de bot)
 const panelApp = () => ({ clientId: process.env.PANEL_CLIENT_ID, clientSecret: process.env.PANEL_CLIENT_SECRET });
-// Gérer les rôles + créer des invitations + voir/écrire dans les salons + intégrer des liens
 const INVITE_PERMS = 268454913;
 const inviteUrl = (botId) => `https://discord.com/oauth2/authorize?${new URLSearchParams({
   client_id: botId, scope: 'bot applications.commands', permissions: String(INVITE_PERMS) })}`;
@@ -40,7 +38,6 @@ module.exports = () => {
   const actorOf = (req) => ({ id: req.session.user_id, name: req.session.username, via: 'panel' });
   const cookieOpts = (maxAgeMs) => ({ httpOnly: true, sameSite: 'lax', secure: isSecure(), maxAge: maxAgeMs });
 
-  // ---------- connexion Discord ----------
   r.get('/panel/login', authLimit, (_req, res) => {
     const nonce = crypto.randomBytes(16).toString('hex');
     res.cookie('ak_state', `${nonce}.${sign(nonce)}`, cookieOpts(10 * 60 * 1000));
@@ -72,12 +69,10 @@ module.exports = () => {
     }
   });
 
-  // ---------- API ----------
   const api = express.Router();
   api.use(noStore, apiLimit, express.json({ limit: '10kb' }));
 
   api.use(async (req, res, next) => {
-    // Anti-CSRF : un en-tête personnalisé ne peut pas être envoyé par un autre site sans autorisation
     if (req.method !== 'GET' && req.get('x-requested-with') !== 'ak47') {
       return res.status(403).json({ error: 'Requête refusée.' });
     }
@@ -89,10 +84,8 @@ module.exports = () => {
     next();
   });
 
-  // Un des bots de l'utilisateur qui est présent dans ce serveur
   const botIn = (userId, guildId) => manager.botsOf(userId).find((id) => manager.get(id).client.guilds.cache.has(guildId));
 
-  // Serveur où l'utilisateur est admin ET où l'un de SES bots est présent
   const guildGuard = (req, res, next) => {
     const id = req.params.id;
     const botId = req.session.guilds.some((g) => g.id === id) && botIn(req.session.user_id, id);
@@ -124,7 +117,6 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  // ----- clés d'API personnelles : agissent uniquement pour leur propriétaire -----
   const MAX_KEYS = 5;
   api.get('/keys', wrap(async (req, res) => {
     const keys = (await db.apiKeysOf(req.session.user_id)).sort((a, b) => b.created - a.created)
@@ -139,7 +131,7 @@ module.exports = () => {
     const key = 'ak_' + crypto.randomBytes(32).toString('hex');
     const hash = crypto.createHash('sha256').update(key).digest('hex');
     const id = await db.createApiKey({ user_id: uid, name, hash, prefix: key.slice(0, 8), created: Date.now(), last_used: null });
-    res.status(201).json({ id, name, key }); // la clé n'est montrée qu'ici, une seule fois
+    res.status(201).json({ id, name, key });
   }));
 
   api.delete('/keys/:id', wrap(async (req, res) => {
@@ -147,7 +139,6 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  // ----- bots -----
   api.post('/bots', sensitiveLimit, wrap(async (req, res) => {
     const uid = req.session.user_id;
     const clientId = String(req.body.clientId || '').trim();
@@ -179,7 +170,6 @@ module.exports = () => {
     const bot = await db.getBot(String(req.params.botId));
     if (!bot || bot.owner_id !== req.session.user_id) return res.status(404).json({ error: 'Bot introuvable.' });
     const actor = actorOf(req);
-    // Alerte AVANT la suppression : le salon d'alerte et le bot en dépendent encore
     const cfgs = await Promise.all((await db.guildsManagedBy(req.session.user_id)).filter((g) => g.bot_id === bot.id).map((g) => db.getGuild(g.id)));
     const total = await db.countBot(bot.id);
     if (total > 0) {
@@ -193,7 +183,6 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  // ----- serveurs -----
   api.get('/guilds/:id', guildGuard, wrap(async (req, res) => {
     const guild = req.guild;
     await guild.roles.fetch();
@@ -203,7 +192,6 @@ module.exports = () => {
       db.countBot(req.bot.id), db.listAudit(guild.id, 50),
     ]);
     const schedules = await schedule.list(guild.id);
-    // Restaurer n'est possible que depuis un serveur géré par le même bot (les jetons sont liés à son application)
     const sources = await Promise.all(managed.filter((g) => g.id !== guild.id && g.bot_id === req.bot.id)
       .map(async (g) => ({ id: g.id, name: g.name || g.id, count: await db.count(g.id) })));
     res.json({
@@ -257,7 +245,6 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  // Personnalisation de la page de vérification (textes, couleurs). Le logo a sa propre route.
   api.post('/guilds/:id/page', guildGuard, wrap(async (req, res) => {
     let page;
     try { page = verifypage.sanitize(req.body); }
@@ -276,7 +263,6 @@ module.exports = () => {
       { verify_page: { ...(cfg?.verify_page || {}), logo_v: v }, name: req.guild.name, bot_id: req.bot.id }, [req.session.user_id]);
   };
 
-  // Corps brut (image) : lu seulement après vérification des droits
   api.put('/guilds/:id/page/logo', guildGuard, express.raw({ type: logoTypes, limit: verifypage.LOGO_MAX }), wrap(async (req, res) => {
     const buf = req.body;
     if (!Buffer.isBuffer(buf) || !buf.length) return res.status(400).json({ error: 'Image PNG, JPEG, GIF ou WebP de 200 Ko maximum.' });
@@ -295,7 +281,6 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  // Protections : âge minimum, anti-alts, anti-VPN
   api.post('/guilds/:id/protection', guildGuard, wrap(async (req, res) => {
     let prot;
     try { prot = protection.sanitize(req.body); }
@@ -305,7 +290,6 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  // Liste noire : ces membres ne peuvent plus se vérifier (et sont retirés de la sauvegarde)
   api.post('/guilds/:id/blacklist', guildGuard, sensitiveLimit, wrap(async (req, res) => {
     const uid = String(req.body.userId || '').trim().replace(/^<@!?(\d+)>$/, '$1');
     if (!protection.isSnowflake(uid)) return res.status(400).json({ error: 'ID Discord invalide (17 à 20 chiffres).' });
@@ -379,7 +363,6 @@ module.exports = () => {
     }
   }));
 
-  // Planifie une restauration à une heure précise : body { source, runAt } (runAt = timestamp en ms)
   api.post('/guilds/:id/restore/schedule', guildGuard, restoreLimit, wrap(async (req, res) => {
     try {
       const out = await schedule.create({ userId: req.session.user_id, guildId: req.guild.id, source: req.body.source,

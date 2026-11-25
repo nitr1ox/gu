@@ -1,18 +1,14 @@
-// Journal d'activité (Firestore : guilds/{id}/audit) + alertes Discord.
-// Alertes : salon choisi par serveur dans le panel (posté par le bot du serveur)
-// et, en option, un webhook global (ALERT_WEBHOOK_URL) pour l'hébergeur.
 const { EmbedBuilder } = require('discord.js');
 const db = require('./db');
 const manager = require('./botmanager');
 
-const MASS_RESTORE = Number(process.env.ALERT_MASS_RESTORE || 50);   // membres ajoutés d'un coup
-const MASS_DELETE = Number(process.env.ALERT_MASS_DELETE || 10);     // retraits manuels ...
-const MASS_DELETE_WINDOW = 10 * 60 * 1000;                           // ... sur cette durée
+const MASS_RESTORE = Number(process.env.ALERT_MASS_RESTORE || 50);
+const MASS_DELETE = Number(process.env.ALERT_MASS_DELETE || 10);
+const MASS_DELETE_WINDOW = 10 * 60 * 1000;
 exports.MASS_RESTORE = MASS_RESTORE;
 
 const COLORS = { info: 0x5865f2, warn: 0xf0a020, danger: 0xd83c3e };
 
-// actor = { id, name, via: 'panel' | 'api' }
 exports.log = async (guildId, actor, action, detail = {}) => {
   try {
     await db.addAudit(guildId, {
@@ -26,7 +22,6 @@ exports.log = async (guildId, actor, action, detail = {}) => {
   } catch (e) { console.error('audit', e.message); }
 };
 
-// Envoie une alerte dans le salon configuré du serveur (+ webhook global). Ne lève jamais d'erreur.
 exports.alert = async ({ guildId, botId, level = 'warn', title, lines = [] }) => {
   const text = lines.join('\n').slice(0, 1800);
   try {
@@ -56,8 +51,7 @@ exports.alert = async ({ guildId, botId, level = 'warn', title, lines = [] }) =>
   }
 };
 
-// Détection de retraits en rafale (par serveur, en mémoire)
-const deletions = new Map(); // guildId -> { n, start, alerted }
+const deletions = new Map();
 exports.noteMemberRemoval = (guildId, botId, actor) => {
   const now = Date.now();
   let d = deletions.get(guildId);

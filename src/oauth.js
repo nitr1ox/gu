@@ -1,7 +1,6 @@
 const API = 'https://discord.com/api/v10';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// app = { clientId, clientSecret } : l'application Discord qui obtient/rafraichit le jeton
 exports.authUrl = (app, state, { scope = 'identify guilds.join', redirect = process.env.REDIRECT_URI } = {}) =>
   `https://discord.com/oauth2/authorize?${new URLSearchParams({
     client_id: app.clientId,
@@ -31,7 +30,6 @@ exports.exchangeCode = (app, code, redirect = process.env.REDIRECT_URI) =>
 exports.refresh = (app, refreshToken) =>
   token(app, { grant_type: 'refresh_token', refresh_token: refreshToken });
 
-// Révoque un jeton qu'on ne veut pas garder (membre refusé par les protections). Sans erreur si ça échoue.
 exports.revoke = async (app, accessToken) => {
   try {
     await fetch(`${API}/oauth2/token/revoke`, {
@@ -39,7 +37,7 @@ exports.revoke = async (app, accessToken) => {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ client_id: app.clientId, client_secret: app.clientSecret, token: accessToken, token_type_hint: 'access_token' }),
     });
-  } catch { /* best effort */ }
+  } catch {  }
 };
 
 const bearer = (accessToken) => ({ Authorization: `Bearer ${accessToken}` });
@@ -56,8 +54,6 @@ exports.getUserGuilds = async (accessToken) => {
   return r.json();
 };
 
-// Le jeton d'acces doit venir de la MEME application que le bot qui appelle.
-// Retourne 'added' | 'already' | 'failed'
 exports.addMember = async (botToken, guildId, userId, accessToken, retries = 3) => {
   const r = await fetch(`${API}/guilds/${guildId}/members/${userId}`, {
     method: 'PUT',

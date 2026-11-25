@@ -1,11 +1,9 @@
-// Logique métier partagée entre le panel web (panel.js) et l'API serveur-à-serveur (api.js).
 const db = require('./db');
 const manager = require('./botmanager');
 const restore = require('./restore');
 const audit = require('./audit');
 
 const ADMIN = 0x8n;
-// Gérer les rôles + créer des invitations + voir/écrire dans les salons + intégrer des liens
 const INVITE_PERMS = 268454913;
 
 class ApiError extends Error {
@@ -24,7 +22,6 @@ const isGuildAdmin = async (guild, userId) => {
   return !!m && m.permissions.has(ADMIN);
 };
 
-// Un des bots de l'utilisateur présent dans ce serveur, où l'utilisateur est admin
 exports.findGuild = async (userId, guildId) => {
   for (const botId of manager.botsOf(userId)) {
     const b = manager.get(botId);
@@ -72,8 +69,6 @@ exports.guildStats = async (userId, guildId) => {
   };
 };
 
-// Vérifie qu'une restauration est permise (mêmes règles pour le lancement immédiat et la planification).
-// Renvoie { found, bot, expected, srcName }.
 exports.validateRestore = async ({ userId, guildId, source }) => {
   source = String(source || '');
   const found = await exports.findGuild(userId, guildId);
@@ -90,7 +85,6 @@ exports.validateRestore = async ({ userId, guildId, source }) => {
   return { found, bot, expected, srcName };
 };
 
-// Ajoute les membres sauvegardés (source = ID d'un serveur géré par le même bot, ou 'all') dans le serveur cible.
 exports.startRestore = async ({ userId, guildId, source, actor }) => {
   actor = actor || { id: userId, name: userId, via: 'panel' };
   source = String(source || '');

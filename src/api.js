@@ -1,6 +1,3 @@
-// API serveur-à-serveur : permet à un AUTRE bot de créer des panels et de piloter ajout de membres / stats.
-// Auth : en-tête  Authorization: Bearer <clé>  (clés dans la variable d'environnement API_KEYS, séparées par des virgules).
-// "user_id" = l'ID Discord de la personne qui a lancé la commande dans l'autre bot.
 const express = require('express');
 const crypto = require('crypto');
 const db = require('./db');
@@ -12,22 +9,18 @@ const ID = /^\d{17,20}$/;
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
 
 module.exports = () => {
-  // Format conseillé : API_KEYS=nomdubot1:secret1,nomdubot2:secret2  (le nom identifie le client, a-z 0-9 _ -).
-  // Un panel créé par une clé n'est ensuite accessible que par cette même clé.
   const entries = (process.env.API_KEYS || '').split(',').map((k) => k.trim()).filter(Boolean).map((raw, i) => {
     const m = raw.match(/^([A-Za-z0-9_-]{1,32}):(.+)$/);
     if (!m) console.warn(`API_KEYS : la clé n°${i + 1} n'a pas de nom (format nom:secret) ; elle est nommée « key${i + 1} ».`);
     return m ? { label: m[1], hash: sha(m[2]) } : { label: `key${i + 1}`, hash: sha(raw) };
   });
   if (!entries.length) console.warn('API_KEYS vide : l\'API /v1 est désactivée.');
-  // Migration : nom du client qui reprend les anciens panels (créés avant ce cloisonnement)
   const LEGACY = process.env.API_LEGACY_CLIENT || null;
 
   const r = express.Router();
-  r.use(limiter({ windowMs: 60000, max: 300, message: 'Trop de requêtes.' })); // par IP, avant même l'authentification
+  r.use(limiter({ windowMs: 60000, max: 300, message: 'Trop de requêtes.' }));
   r.use(express.json({ limit: '10kb' }));
 
-  // ---- authentification + limite de débit (120 req/min par clé) ----
   const hits = new Map();
   r.use(async (req, res, next) => {
     try {
@@ -35,10 +28,10 @@ module.exports = () => {
       const given = sha(raw);
       let bucket;
       const idx = entries.findIndex((e) => crypto.timingSafeEqual(e.hash, given));
-      if (idx >= 0) { // clé « client » (variable API_KEYS) : agit pour plusieurs utilisateurs
+      if (idx >= 0) {
         req.apiClient = entries[idx].label;
         bucket = `c:${idx}`;
-      } else if (raw.startsWith('ak_') && raw.length <= 100) { // clé personnelle créée dans le panel : agit pour son propriétaire seulement
+      } else if (raw.startsWith('ak_') && raw.length <= 100) {
         const k = await db.getApiKeyByHash(given.toString('hex'));
         if (!k) return res.status(401).json({ error: 'Clé API invalide.' });
         req.apiUser = k.user_id;
@@ -68,20 +61,17 @@ module.exports = () => {
     return String(v);
   };
 
-  // Le panel de cet utilisateur doit appartenir à la clé qui appelle (sinon 403). Renvoie le panel, ou null s'il n'existe pas.
   const owned = async (req, userId) => {
     const p = await db.getPanel(userId);
     if (!p) return null;
     if (p.api_client === req.apiClient) return p;
-    if (!p.api_client && LEGACY && LEGACY === req.apiClient) { // ancien panel : adopté par le client de migration
+    if (!p.api_client && LEGACY && LEGACY === req.apiClient) {
       await db.savePanel(userId, { api_client: req.apiClient });
       return { ...p, api_client: req.apiClient };
     }
     throw new services.ApiError(403, "Ce panel n'appartient pas à cette clé API.");
   };
 
-  // ID de l'utilisateur concerné. Clé personnelle : toujours son propriétaire (user_id facultatif, mais s'il est donné il doit lui correspondre).
-  // Clé client : user_id obligatoire, et le panel doit appartenir à cette clé.
   const who = async (req, v) => {
     if (req.apiUser) {
       if (v != null && v !== '' && String(v) !== req.apiUser) throw new services.ApiError(403, 'Cette clé ne peut agir que pour son propriétaire.');
@@ -92,10 +82,9 @@ module.exports = () => {
     return userId;
   };
 
-  // Crée (ou retrouve) le panel d'un utilisateur. Idempotent.
   r.post('/panels', wrap(async (req, res) => {
     const userId = await who(req, req.body.user_id);
-    const existing = req.apiUser ? true : !!(await db.getPanel(userId)); // clé personnelle : pas de panel à créer
+    const existing = req.apiUser ? true : !!(await db.getPanel(userId));
     if (!req.apiUser) await db.savePanel(userId, {
       user_id: userId,
       api_client: req.apiClient,
@@ -112,20 +101,17 @@ module.exports = () => {
     });
   }));
 
-  // Bots, serveurs et stats d'un utilisateur
   r.get('/panels/:userId', wrap(async (req, res) => {
     const userId = await who(req, req.params.userId);
     if (!req.apiUser && !(await db.getPanel(userId))) return res.status(404).json({ error: "Cet utilisateur n'a pas de panel." });
     res.json({ panel_url: services.panelUrl(), ...(await services.overview(userId)) });
   }));
 
-  // Stats d'un serveur (l'utilisateur doit y être admin avec un de ses bots)
   r.get('/guilds/:guildId/stats', wrap(async (req, res) => {
     const userId = await who(req, req.query.user_id);
     res.json(await services.guildStats(userId, String(req.params.guildId)));
   }));
 
-  // Ajoute les membres sauvegardés dans un serveur : body { user_id, source } (source = ID d'un serveur, ou "all")
   r.post('/guilds/:guildId/members/add', wrap(async (req, res) => {
     const userId = await who(req, req.body.user_id);
     const jobId = await services.startRestore({
@@ -134,7 +120,6 @@ module.exports = () => {
     res.status(202).json({ job_id: jobId });
   }));
 
-  // Planifie l'ajout de membres à une heure précise : body { user_id, source, run_at } (run_at = timestamp ms/s ou ISO 8601 avec fuseau)
   r.post('/guilds/:guildId/members/schedule', wrap(async (req, res) => {
     const userId = await who(req, req.body.user_id);
     const guildId = String(req.params.guildId);
@@ -144,7 +129,6 @@ module.exports = () => {
     res.status(201).json({ schedule_id: out.id, run_at: out.run_at, expected: out.expected });
   }));
 
-  // Planifications d'un serveur
   r.get('/guilds/:guildId/members/schedules', wrap(async (req, res) => {
     const userId = await who(req, req.query.user_id);
     const guildId = String(req.params.guildId);
@@ -152,7 +136,6 @@ module.exports = () => {
     res.json({ schedules: await schedule.list(guildId) });
   }));
 
-  // Annule une planification en attente
   r.delete('/guilds/:guildId/members/schedules/:id', wrap(async (req, res) => {
     const userId = await who(req, req.query.user_id);
     const guildId = String(req.params.guildId);
@@ -162,7 +145,6 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  // Progression d'un ajout de membres
   r.get('/jobs/:jobId', wrap(async (req, res) => {
     const userId = await who(req, req.query.user_id);
     const job = await db.getJob(String(req.params.jobId));

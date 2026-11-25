@@ -3,9 +3,8 @@ const { encrypt, decrypt } = require('./crypto');
 const oauth = require('./oauth');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const running = new Set(); // un seul job par serveur cible
+const running = new Set();
 
-// L'utilisateur a configure ce serveur (ou en est le proprietaire). Marche meme si le serveur est supprime.
 exports.canManage = async (userId, guildId) => {
   const g = await db.getGuild(guildId);
   return !!g && (g.managers || []).includes(userId);
@@ -13,7 +12,6 @@ exports.canManage = async (userId, guildId) => {
 
 exports.isRunning = (target) => running.has(target);
 
-// bot = { id, token, secret } : le MEME bot que celui qui a collecte les jetons
 exports.run = async ({ source, target, bot, onProgress = () => {} }) => {
   if (running.has(target)) throw new Error('Une restauration est deja en cours pour ce serveur.');
   running.add(target);
@@ -37,11 +35,11 @@ exports.run = async ({ source, target, bot, onProgress = () => {} }) => {
         if (res === 'added') stats.added++; else if (res === 'already') stats.already++; else stats.failed++;
       } catch (e) {
         stats.failed++;
-        if (e.code === 'invalid_grant') await db.deleteMember(m.user_id, m.guild_id); // a retiré l'application
+        if (e.code === 'invalid_grant') await db.deleteMember(m.user_id, m.guild_id);
       }
       stats.done++;
       if (stats.done % 5 === 0) await onProgress({ ...stats });
-      await sleep(1100); // reste sous les rate limits
+      await sleep(1100);
     }
     await onProgress({ ...stats });
     return stats;

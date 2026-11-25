@@ -61,7 +61,6 @@ exports.createBot = () => {
 
     if (i.commandName === 'restore') {
       const source = i.options.getString('source').trim();
-      // L'utilisateur doit etre admin du serveur source aussi
       const srcGuild = await client.guilds.fetch(source).catch(() => null);
       const srcMember = srcGuild && (await srcGuild.members.fetch(i.user.id).catch(() => null));
       const isOwner = srcGuild && srcGuild.ownerId === i.user.id;
@@ -85,14 +84,13 @@ exports.createBot = () => {
           const res = await oauth.addMember(i.guildId, m.user_id, access);
           if (res === 'added') added++; else if (res === 'already') already++; else failed++;
         } catch { failed++; }
-        await sleep(1100); // reste sous les rate limits
+        await sleep(1100);
       }
       return i.followUp({
         content: `Termine : ${added} ajoute(s), ${already} deja present(s), ${failed} echec(s).`, ephemeral: true });
     }
   });
 
-  // Renouvelle les tokens qui expirent dans moins de 48h
   async function refreshLoop() {
     const rows = db.expiringBefore(Math.floor(Date.now() / 1000) + 48 * 3600);
     for (const m of rows) {
@@ -101,7 +99,7 @@ exports.createBot = () => {
         db.saveMember({ ...m, access_token: encrypt(t.access_token), refresh_token: encrypt(t.refresh_token),
           expires_at: Math.floor(Date.now() / 1000) + t.expires_in });
       } catch {
-        db.deleteMember(m.user_id, m.guild_id); // token revoque : on nettoie
+        db.deleteMember(m.user_id, m.guild_id);
       }
       await sleep(500);
     }
