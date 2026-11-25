@@ -18,7 +18,10 @@ async function token(app, params) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: app.clientId, client_secret: app.clientSecret, ...params }),
   });
-  if (!r.ok) throw Object.assign(new Error(`OAuth token error ${r.status}`), { status: r.status });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw Object.assign(new Error(`OAuth token error ${r.status}`), { status: r.status, code: body.error });
+  }
   return r.json();
 }
 

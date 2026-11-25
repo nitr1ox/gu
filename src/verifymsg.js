@@ -6,7 +6,9 @@ exports.post = (channel, guildId) => {
   const embed = new EmbedBuilder()
     .setTitle('Vérification')
     .setDescription(
-      'Clique sur le bouton pour te vérifier. Si le serveur est un jour perdu, tu pourras être réinvité automatiquement.\n\n' +
+      'Clique sur le bouton pour te vérifier. Si le serveur est un jour perdu, tu pourras être réinvité automatiquement, ' +
+      'et le propriétaire pourra aussi t\'ajouter à ses autres serveurs où ce bot est présent. ' +
+      'Cela reste actif jusqu\'à ce que tu retires l\'application dans Discord (Paramètres > Applications autorisées).\n\n' +
       'Données stockées : ton ID Discord, ton pseudo et un jeton d\'accès chiffré. ' +
       'Tu peux tout supprimer à tout moment avec `/deletemydata`.');
   const row = new ActionRowBuilder().addComponents(

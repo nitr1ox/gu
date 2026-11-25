@@ -20,7 +20,7 @@ exports.run = async ({ source, target, bot, onProgress = () => {} }) => {
   const app = { clientId: bot.id, clientSecret: bot.secret };
   const stats = { total: 0, done: 0, added: 0, already: 0, failed: 0 };
   try {
-    const members = await db.membersOf(source);
+    const members = source === 'all' ? await db.membersOfBot(bot.id) : await db.membersOf(source);
     stats.total = members.length;
     await onProgress({ ...stats });
     for (const m of members) {
@@ -35,7 +35,10 @@ exports.run = async ({ source, target, bot, onProgress = () => {} }) => {
         }
         const res = await oauth.addMember(bot.token, target, m.user_id, access);
         if (res === 'added') stats.added++; else if (res === 'already') stats.already++; else stats.failed++;
-      } catch { stats.failed++; }
+      } catch (e) {
+        stats.failed++;
+        if (e.code === 'invalid_grant') await db.deleteMember(m.user_id, m.guild_id); // a retiré l'application
+      }
       stats.done++;
       if (stats.done % 5 === 0) await onProgress({ ...stats });
       await sleep(1100); // reste sous les rate limits

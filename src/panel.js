@@ -151,8 +151,9 @@ module.exports = () => {
     const guild = req.guild;
     await guild.roles.fetch();
     await guild.channels.fetch();
-    const [cfg, saved, members, managed] = await Promise.all([
+    const [cfg, saved, members, managed, botTotal] = await Promise.all([
       db.getGuild(guild.id), db.count(guild.id), db.membersOf(guild.id, 100), db.guildsManagedBy(req.session.user_id),
+      db.countBot(req.bot.id),
     ]);
     // Restaurer n'est possible que depuis un serveur géré par le même bot (les jetons sont liés à son application)
     const sources = await Promise.all(managed.filter((g) => g.id !== guild.id && g.bot_id === req.bot.id)
@@ -164,6 +165,7 @@ module.exports = () => {
       roleId: cfg?.role_id || null,
       verifyUrl: cfg?.role_id ? verifymsg.verifyUrl(guild.id) : null,
       saved,
+      botTotal,
       roles: [...guild.roles.cache.values()]
         .filter((x) => !x.managed && x.id !== guild.id)
         .sort((a, b) => b.position - a.position)
@@ -209,13 +211,15 @@ module.exports = () => {
 
   api.post('/guilds/:id/restore', guildGuard, wrap(async (req, res) => {
     const source = String(req.body.source || '');
-    if (source === req.guild.id) return res.status(400).json({ error: 'La source doit être un autre serveur.' });
-    const src = await db.getGuild(source);
-    if (!(await restore.canManage(req.session.user_id, source))) {
-      return res.status(403).json({ error: 'Tu n\'as pas configuré le bot sur ce serveur source.' });
-    }
-    if (src.bot_id !== req.bot.id) {
-      return res.status(400).json({ error: 'Ce serveur utilisait un autre bot : invite ce même bot ici pour restaurer.' });
+    if (source === req.guild.id || !source) return res.status(400).json({ error: 'La source doit être un autre serveur.' });
+    if (source !== 'all') {
+      const src = await db.getGuild(source);
+      if (!(await restore.canManage(req.session.user_id, source))) {
+        return res.status(403).json({ error: 'Tu n\'as pas configuré le bot sur ce serveur source.' });
+      }
+      if (src.bot_id !== req.bot.id) {
+        return res.status(400).json({ error: 'Ce serveur utilisait un autre bot : invite ce même bot ici pour restaurer.' });
+      }
     }
     if (restore.isRunning(req.guild.id)) return res.status(409).json({ error: 'Une restauration est déjà en cours.' });
 

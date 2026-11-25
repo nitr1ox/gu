@@ -58,6 +58,10 @@ module.exports = {
     if (limit) q = q.limit(limit);
     return (await q.get()).docs.map((d) => d.data());
   },
+  membersOfBot: async (botId) =>
+    (await col('members').where('bot_id', '==', botId).get()).docs.map((d) => d.data()),
+  countBot: async (botId) =>
+    (await col('members').where('bot_id', '==', botId).count().get()).data().count,
   expiringBefore: async (ts) =>
     (await col('members').where('expires_at', '<', ts).get()).docs.map((d) => d.data()),
   deleteMember: (userId, guildId) => col('members').doc(memberId(guildId, userId)).delete(),
