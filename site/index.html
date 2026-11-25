@@ -1,1 +1,143 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="ak47bot sauvegarde les membres vérifiés de ton serveur Discord et les réinvite en quelques clics si tu dois repartir de zéro.">
+  <title>ak47bot · Ne perds plus jamais ta communauté</title>
+  <link rel="stylesheet" href="/home.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/" aria-label="ak47bot, accueil"><span class="logo" aria-hidden="true">AK</span>ak47bot</a>
+    <nav aria-label="Navigation principale">
+      <a href="#fonctionnement">Fonctionnement</a>
+      <a href="#protections">Protections</a>
+      <a href="#confidentialite">Confidentialité</a>
+      <a class="btn sm" href="/panel/">Ouvrir le panel</a>
+    </nav>
+  </header>
 
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <h1>Ton serveur disparaît. Ta communauté, non.</h1>
+        <p class="lead">ak47bot sauvegarde les membres qui se vérifient sur ton serveur Discord. Si tu dois repartir de zéro, tu les réinvites dans le nouveau en quelques clics.</p>
+        <div class="actions">
+          <a class="btn" href="/panel/login">Se connecter avec Discord</a>
+          <a class="btn ghost" href="#fonctionnement">Voir comment ça marche</a>
+        </div>
+        <p class="fine">Chaque membre est informé de ce qui est enregistré avant de se vérifier.</p>
+      </div>
+
+      <figure class="mock" aria-hidden="true">
+        <div class="mock-bar"><span></span><span></span><span></span><b>Restauration</b><em>Aperçu</em></div>
+        <div class="mock-body">
+          <p class="mock-title">Vers « Nouveau serveur »</p>
+          <div class="bar"><i></i></div>
+          <p class="mock-count"><b>1 284</b> sur 2 000 membres</p>
+          <dl class="mock-stats">
+            <div><dt>Ajoutés</dt><dd>1 190</dd></div>
+            <div><dt>Déjà présents</dt><dd>61</dd></div>
+            <div><dt>Échecs</dt><dd>33</dd></div>
+          </dl>
+          <ul class="mock-log">
+            <li><span class="dot ok"></span>Restauration lancée par toi</li>
+            <li><span class="dot"></span>Planifiée pour samedi, 20 h 00</li>
+            <li><span class="dot warn"></span>Vérification refusée : VPN détecté</li>
+          </ul>
+        </div>
+      </figure>
+    </section>
+
+    <section id="fonctionnement" class="block">
+      <h2>De la sauvegarde à la restauration, en trois étapes</h2>
+      <ol class="steps">
+        <li>
+          <h3>Ajoute ton bot</h3>
+          <p>Tu connectes ton compte Discord, puis tu colles l’identifiant, le secret et le token de ton propre bot dans le panel. Tu gardes la main sur ton application.</p>
+        </li>
+        <li>
+          <h3>Publie la vérification</h3>
+          <p>Tu choisis le rôle des membres vérifiés et tu publies le message. Chaque membre qui clique est sauvegardé et reçoit son rôle.</p>
+        </li>
+        <li>
+          <h3>Restaure quand tu veux</h3>
+          <p>Serveur perdu ? Invite le même bot dans le nouveau serveur, choisis la source et lance la restauration, tout de suite ou à l’heure que tu fixes.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="block">
+      <h2>Tout ce qu’il faut pour garder la main</h2>
+      <dl class="features">
+        <div>
+          <dt>Restauration planifiée</dt>
+          <dd>Choisis le jour et l’heure. La planification est revérifiée au moment du lancement et peut être annulée tant qu’elle est en attente.</dd>
+        </div>
+        <div>
+          <dt>Page de vérification sur mesure</dt>
+          <dd>Logo, titre, texte, couleurs et bouton : tu personnalises la page, avec un aperçu en direct.</dd>
+        </div>
+        <div>
+          <dt>Journal d’activité</dt>
+          <dd>Qui a lancé une restauration, retiré un membre ou changé un réglage : tout est consigné dans le panel.</dd>
+        </div>
+        <div>
+          <dt>Alertes dans Discord</dt>
+          <dd>Reçois un message dans le salon de ton choix en cas de restauration massive, de suppressions en série ou de bot supprimé.</dd>
+        </div>
+        <div>
+          <dt>API pour un autre bot</dt>
+          <dd>Propose une commande <code>/panel</code> dans ton bot et pilote l’ajout de membres, les statistiques et les planifications.</dd>
+        </div>
+        <div>
+          <dt>Plusieurs serveurs</dt>
+          <dd>Un seul panel pour tous tes serveurs et tous tes bots, avec leur état en direct.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section id="protections" class="block split">
+      <div>
+        <h2>Des protections avant la sauvegarde</h2>
+        <p>Les contrôles ont lieu au retour de Discord, avant l’enregistrement du jeton. Un membre refusé n’est pas sauvegardé, ne reçoit pas le rôle, et son jeton est révoqué.</p>
+      </div>
+      <ul class="checks">
+        <li><b>Âge minimum du compte</b><span>De 0 à 365 jours, calculé depuis l’identifiant Discord.</span></li>
+        <li><b>Anti-alts</b><span>Un seul compte vérifié par connexion et par serveur.</span></li>
+        <li><b>Anti-VPN</b><span>Refuse VPN, proxys et Tor.</span></li>
+        <li><b>Liste noire</b><span>Jusqu’à 500 identifiants qui ne peuvent pas se vérifier.</span></li>
+      </ul>
+    </section>
+
+    <section id="confidentialite" class="block split">
+      <div>
+        <h2>Les membres savent ce qui est enregistré</h2>
+        <p>La page de vérification indique clairement que le membre pourra être réinvité et qu’un jeton chiffré est conservé. Cette mention n’est pas modifiable.</p>
+      </div>
+      <ul class="checks">
+        <li><b>Chiffrement</b><span>Tokens de bots, secrets et jetons de membres sont chiffrés en AES-256-GCM.</span></li>
+        <li><b>Suppression à la demande</b><span>Chaque membre efface ses données avec la commande <code>/deletemydata</code>.</span></li>
+        <li><b>IP et e-mail en option</b><span>Désactivés par défaut. S’ils sont activés, le membre en est prévenu.</span></li>
+      </ul>
+    </section>
+
+    <section class="cta">
+      <h2>Prépare ta prochaine restauration avant d’en avoir besoin</h2>
+      <p>La sauvegarde ne commence qu’une fois la vérification en place. Autant la publier aujourd’hui.</p>
+      <a class="btn" href="/panel/login">Se connecter avec Discord</a>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <a class="brand" href="/"><span class="logo" aria-hidden="true">AK</span>ak47bot</a>
+    <nav aria-label="Pied de page">
+      <a href="/panel/">Panel</a>
+      <a href="#confidentialite">Confidentialité</a>
+    </nav>
+  </footer>
+</body>
+</html>
