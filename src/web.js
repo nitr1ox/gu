@@ -4,6 +4,10 @@ const { encrypt } = require('./crypto');
 const oauth = require('./oauth');
 const manager = require('./botmanager');
 const { sign, safeEq } = require('./util');
+const { headers, limiter } = require('./security');
+const verifypage = require('./verifypage');
+const protection = require('./protection');
+const audit = require('./audit');
 
 const makeState = (guildId) => `${guildId}.${sign(guildId)}`;
 const readState = (state = '') => {
@@ -11,9 +15,15 @@ const readState = (state = '') => {
   return guildId && sig && safeEq(sig, sign(guildId)) ? guildId : null;
 };
 
-const page = (title, body) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<body style="font-family:system-ui;background:#e8eae0;color:#1f2418;display:grid;place-items:center;min-height:100vh;margin:0">
-<div style="max-width:420px;padding:24px;text-align:center"><h2>${title}</h2><p>${body}</p></div></body>`;
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const page = (title, body) => `<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>${esc(title)}</title>
+<style>
+:root{--bg:#f4f5f1;--card:#fff;--ink:#1b1f16;--muted:#646b5a;--line:#e1e4d8}
+@media(prefers-color-scheme:dark){:root{--bg:#14160f;--card:#1c1f15;--ink:#eceee4;--muted:#a0a692;--line:#2d3123}}
+body{font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);display:grid;place-items:center;min-height:100vh;margin:0;padding:16px}
+.c{max-width:420px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:32px 24px;text-align:center}
+h1{font-size:1.25rem;margin:0 0 8px}p{margin:0;color:var(--muted)}
+</style><body><main class="c"><h1>${title}</h1><p>${body}</p></main></body></html>`;
 
 // Retrouve le bot (en ligne) qui gere ce serveur
 const botFor = async (guildId) => {
@@ -25,11 +35,41 @@ const botFor = async (guildId) => {
 exports.startWeb = () => {
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 1)); // 1 = un proxy devant (Render, Heroku...). 0 si exposé directement.
+  app.use(headers);
+
+  // Vérification publique : limite par IP
+  const publicLimit = limiter({ windowMs: 60000, max: 30 });
+  app.use(['/verify', '/callback'], publicLimit);
+
+  // Page d'accueil de vérification (personnalisable), puis redirection vers Discord au clic
+  const logoUrl = (guildId, cfg) => (cfg.verify_page?.logo_v ? `/verify/logo/${guildId}?v=${cfg.verify_page.logo_v}` : null);
 
   app.get('/verify', async (req, res) => {
-    const found = await botFor(String(req.query.guild || ''));
+    const guildId = String(req.query.guild || '');
+    const found = await botFor(guildId);
     if (!found?.cfg.role_id) return res.status(404).send(page('Serveur inconnu', 'Ce serveur n\'est pas configuré ou son bot est hors ligne.'));
-    res.redirect(oauth.authUrl({ clientId: found.id }, makeState(req.query.guild)));
+    const guild = found.bot.client.guilds.cache.get(guildId);
+    const pr = protection.resolve(found.cfg.protection);
+    res.send(verifypage.render({
+      stored: found.cfg.verify_page, guildId, guildName: guild?.name || found.cfg.name, ipCheck: pr.anti_alt || pr.anti_vpn, logIp: pr.log_ip, logEmail: pr.log_email,
+      logoUrl: logoUrl(guildId, found.cfg) || guild?.iconURL({ size: 128, extension: 'png' }),
+    }));
+  });
+
+  app.get('/verify/start', async (req, res) => {
+    const guildId = String(req.query.guild || '');
+    const found = await botFor(guildId);
+    if (!found?.cfg.role_id) return res.status(404).send(page('Serveur inconnu', 'Ce serveur n\'est pas configuré ou son bot est hors ligne.'));
+    // Le scope « email » n'est demandé que si le serveur a choisi d'enregistrer l'email
+    const scope = protection.resolve(found.cfg.protection).log_email ? 'identify guilds.join email' : 'identify guilds.join';
+    res.redirect(oauth.authUrl({ clientId: found.id }, makeState(guildId), { scope }));
+  });
+
+  app.get('/verify/logo/:guild', async (req, res) => {
+    const logo = /^\d{17,20}$/.test(req.params.guild) ? await db.getLogo(req.params.guild) : null;
+    if (!logo) return res.status(404).end();
+    res.set({ 'Content-Type': logo.type, 'Cache-Control': 'public, max-age=3600' }).send(logo.data);
   });
 
   app.get('/callback', async (req, res) => {
@@ -40,11 +80,25 @@ exports.startWeb = () => {
       if (!found) return res.status(404).send(page('Erreur', 'Le bot de ce serveur est hors ligne.'));
       const t = await oauth.exchangeCode({ clientId: found.id, clientSecret: found.bot.secret }, String(req.query.code));
       const user = await oauth.getUser(t.access_token);
+
+      // Protections : refus AVANT d'enregistrer le jeton du membre
+      const blocked = await protection.check({ cfg: found.cfg, guildId, userId: user.id, ip: req.ip });
+      if (blocked) {
+        await oauth.revoke({ clientId: found.id, clientSecret: found.bot.secret }, t.access_token);
+        await audit.log(guildId, { id: user.id, name: user.username, via: 'verify' }, 'verify.blocked', { reason: blocked.reason, ...blocked.detail });
+        return res.status(403).send(page('Vérification refusée', protection.MESSAGES[blocked.reason]));
+      }
+      const pr = protection.resolve(found.cfg.protection);
+      await protection.remember({ cfg: found.cfg, guildId, userId: user.id, ip: req.ip });
+
       await db.saveMember({
         user_id: user.id,
         guild_id: guildId,
         bot_id: found.id,
         username: user.username,
+        // Journal choisi par le serveur (chiffré). Absent si l'option est désactivée.
+        ...(pr.log_ip && req.ip ? { ip: encrypt(req.ip) } : {}),
+        ...(pr.log_email && user.email ? { email: encrypt(user.email) } : {}),
         access_token: encrypt(t.access_token),
         refresh_token: encrypt(t.refresh_token),
         expires_at: Math.floor(Date.now() / 1000) + t.expires_in,
@@ -52,7 +106,10 @@ exports.startWeb = () => {
       const guild = found.bot.client.guilds.cache.get(guildId);
       const member = guild && (await guild.members.fetch(user.id).catch(() => null));
       if (member && found.cfg.role_id) await member.roles.add(found.cfg.role_id).catch(() => {});
-      res.send(page('Vérifié ✅', 'Tu peux retourner sur Discord.'));
+      res.send(verifypage.render({
+        stored: found.cfg.verify_page, guildId, guildName: guild?.name || found.cfg.name, kind: 'done',
+        logoUrl: logoUrl(guildId, found.cfg) || guild?.iconURL({ size: 128, extension: 'png' }),
+      }));
     } catch (e) {
       console.error(e);
       res.status(500).send(page('Erreur', 'Réessaie dans un instant.'));

@@ -31,6 +31,17 @@ exports.exchangeCode = (app, code, redirect = process.env.REDIRECT_URI) =>
 exports.refresh = (app, refreshToken) =>
   token(app, { grant_type: 'refresh_token', refresh_token: refreshToken });
 
+// Révoque un jeton qu'on ne veut pas garder (membre refusé par les protections). Sans erreur si ça échoue.
+exports.revoke = async (app, accessToken) => {
+  try {
+    await fetch(`${API}/oauth2/token/revoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: app.clientId, client_secret: app.clientSecret, token: accessToken, token_type_hint: 'access_token' }),
+    });
+  } catch { /* best effort */ }
+};
+
 const bearer = (accessToken) => ({ Authorization: `Bearer ${accessToken}` });
 
 exports.getUser = async (accessToken) => {

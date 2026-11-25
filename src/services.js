@@ -2,6 +2,7 @@
 const db = require('./db');
 const manager = require('./botmanager');
 const restore = require('./restore');
+const audit = require('./audit');
 
 const ADMIN = 0x8n;
 // Gérer les rôles + créer des invitations + voir/écrire dans les salons + intégrer des liens
@@ -71,8 +72,9 @@ exports.guildStats = async (userId, guildId) => {
   };
 };
 
-// Ajoute les membres sauvegardés (source = ID d'un serveur géré par le même bot, ou 'all') dans le serveur cible.
-exports.startRestore = async ({ userId, guildId, source }) => {
+// Vérifie qu'une restauration est permise (mêmes règles pour le lancement immédiat et la planification).
+// Renvoie { found, bot, expected, srcName }.
+exports.validateRestore = async ({ userId, guildId, source }) => {
   source = String(source || '');
   const found = await exports.findGuild(userId, guildId);
   if (!found) throw new ApiError(404, "Serveur introuvable, ou tu n'y es pas admin avec un de tes bots.");
@@ -80,17 +82,41 @@ exports.startRestore = async ({ userId, guildId, source }) => {
   if (!source || source === guildId) throw new ApiError(400, 'La source doit être un autre serveur.');
   if (source !== 'all') {
     const src = await db.getGuild(source);
-    if (!(await restore.canManage(userId, source))) throw new ApiError(403, "Tu n'as pas configuré le bot sur ce serveur source.");
+    if (!src || !(await restore.canManage(userId, source))) throw new ApiError(403, "Tu n'as pas configuré le bot sur ce serveur source.");
     if (src.bot_id !== bot.id) throw new ApiError(400, 'Ce serveur utilisait un autre bot : invite ce même bot ici pour restaurer.');
   }
+  const expected = source === 'all' ? await db.countBot(bot.id) : await db.count(source);
+  const srcName = source === 'all' ? `tous les membres du bot ${found.guild.client.user.username}` : ((await db.getGuild(source))?.name || source);
+  return { found, bot, expected, srcName };
+};
+
+// Ajoute les membres sauvegardés (source = ID d'un serveur géré par le même bot, ou 'all') dans le serveur cible.
+exports.startRestore = async ({ userId, guildId, source, actor }) => {
+  actor = actor || { id: userId, name: userId, via: 'panel' };
+  source = String(source || '');
+  const { found, bot, expected, srcName } = await exports.validateRestore({ userId, guildId, source });
   if (restore.isRunning(guildId)) throw new ApiError(409, 'Une restauration est déjà en cours.');
 
   const jobId = await db.createJob({ user_id: userId, source, target: guildId,
     status: 'running', total: 0, done: 0, added: 0, already: 0, failed: 0, created: Date.now() });
+  await audit.log(guildId, actor, 'restore.start', { source, source_name: srcName, expected, job_id: jobId });
+  if (expected >= audit.MASS_RESTORE) {
+    audit.alert({ guildId, botId: bot.id, level: 'danger', title: 'Restauration massive lancée',
+      lines: [`**${expected}** membres vont être ajoutés dans **${found.guild.name}**.`,
+        `Source : ${srcName}`, `Lancé par : ${actor.name || actor.id} (${actor.id}) via ${actor.via}`] });
+  }
+  let last = {};
   restore.run({ source, target: guildId,
       bot: { id: bot.id, token: bot.token, secret: bot.secret },
-      onProgress: (s) => db.updateJob(jobId, s) })
-    .then(() => db.updateJob(jobId, { status: 'done' }))
-    .catch((e) => { console.error(e); db.updateJob(jobId, { status: 'error' }); });
+      onProgress: (s) => { last = s; return db.updateJob(jobId, s); } })
+    .then(() => {
+      db.updateJob(jobId, { status: 'done' });
+      audit.log(guildId, actor, 'restore.end', { job_id: jobId, status: 'done', added: last.added, already: last.already, failed: last.failed, total: last.total });
+    })
+    .catch((e) => {
+      console.error(e);
+      db.updateJob(jobId, { status: 'error' });
+      audit.log(guildId, actor, 'restore.end', { job_id: jobId, status: 'error', added: last.added, failed: last.failed, total: last.total });
+    });
   return jobId;
 };

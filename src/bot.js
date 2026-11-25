@@ -47,7 +47,7 @@ exports.createBot = () => {
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setLabel('Se verifier').setStyle(ButtonStyle.Link).setURL(url));
       await i.channel.send({ embeds: [embed], components: [row] });
-      return i.reply({ content: 'Configure ✅', ephemeral: true });
+      return i.reply({ content: 'Configuré', ephemeral: true });
     }
 
     if (i.commandName === 'stats') {

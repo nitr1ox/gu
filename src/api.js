@@ -5,6 +5,8 @@ const express = require('express');
 const crypto = require('crypto');
 const db = require('./db');
 const services = require('./services');
+const schedule = require('./schedule');
+const { limiter } = require('./security');
 
 const ID = /^\d{17,20}$/;
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
@@ -14,6 +16,7 @@ module.exports = () => {
   if (!keys.length) console.warn('API_KEYS vide : l\'API /v1 est désactivée.');
 
   const r = express.Router();
+  r.use(limiter({ windowMs: 60000, max: 300, message: 'Trop de requêtes.' })); // par IP, avant même l'authentification
   r.use(express.json({ limit: '10kb' }));
 
   // ---- authentification + limite de débit (120 req/min par clé) ----
@@ -72,9 +75,39 @@ module.exports = () => {
 
   // Ajoute les membres sauvegardés dans un serveur : body { user_id, source } (source = ID d'un serveur, ou "all")
   r.post('/guilds/:guildId/members/add', wrap(async (req, res) => {
+    const userId = uid(req.body.user_id);
     const jobId = await services.startRestore({
-      userId: uid(req.body.user_id), guildId: String(req.params.guildId), source: req.body.source });
+      userId, guildId: String(req.params.guildId), source: req.body.source,
+      actor: { id: userId, name: String((await db.getPanel(userId))?.username || userId), via: 'api' } });
     res.status(202).json({ job_id: jobId });
+  }));
+
+  // Planifie l'ajout de membres à une heure précise : body { user_id, source, run_at } (run_at = timestamp ms/s ou ISO 8601 avec fuseau)
+  r.post('/guilds/:guildId/members/schedule', wrap(async (req, res) => {
+    const userId = uid(req.body.user_id);
+    const guildId = String(req.params.guildId);
+    if (!(await services.findGuild(userId, guildId))) throw new services.ApiError(404, "Serveur introuvable, ou tu n'y es pas admin avec un de tes bots.");
+    const out = await schedule.create({ userId, guildId, source: req.body.source, runAt: schedule.parseRunAt(req.body.run_at),
+      actor: { id: userId, name: String((await db.getPanel(userId))?.username || userId), via: 'api' } });
+    res.status(201).json({ schedule_id: out.id, run_at: out.run_at, expected: out.expected });
+  }));
+
+  // Planifications d'un serveur
+  r.get('/guilds/:guildId/members/schedules', wrap(async (req, res) => {
+    const userId = uid(req.query.user_id);
+    const guildId = String(req.params.guildId);
+    if (!(await services.findGuild(userId, guildId))) throw new services.ApiError(404, "Serveur introuvable, ou tu n'y es pas admin avec un de tes bots.");
+    res.json({ schedules: await schedule.list(guildId) });
+  }));
+
+  // Annule une planification en attente
+  r.delete('/guilds/:guildId/members/schedules/:id', wrap(async (req, res) => {
+    const userId = uid(req.query.user_id);
+    const guildId = String(req.params.guildId);
+    if (!(await services.findGuild(userId, guildId))) throw new services.ApiError(404, "Serveur introuvable, ou tu n'y es pas admin avec un de tes bots.");
+    await schedule.cancel({ guildId, scheduleId: req.params.id,
+      actor: { id: userId, name: String((await db.getPanel(userId))?.username || userId), via: 'api' } });
+    res.json({ ok: true });
   }));
 
   // Progression d'un ajout de membres
