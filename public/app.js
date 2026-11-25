@@ -39,7 +39,6 @@ function when(ts) {
   return d < 86400 ? 'dans moins d\'un jour' : `dans ${Math.round(d / 86400)} j`;
 }
 
-// ---------- journal d'activité ----------
 const ACTIONS = {
   'restore.start': (d) => `a lancé une restauration (${d.expected ?? '?'} membres) depuis ${d.source_name || d.source}`,
   'restore.end': (d) => d.status === 'done'
@@ -63,7 +62,6 @@ const ACTIONS = {
 const DANGER = new Set(['verify.blocked', 'restore.start', 'restore.schedule', 'restore.schedule_failed', 'members.mass_removal', 'bot.delete']);
 const stamp = (ts) => new Date(ts).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 
-// ---------- vues ----------
 const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 const card = (title, ...kids) => h('section', { class: 'card' }, title && h('h2', {}, title), ...kids);
 const copy = (text) => navigator.clipboard.writeText(text).then(() => toast('Lien copié'), () => toast('Copie impossible', true));
@@ -93,7 +91,6 @@ function loginView() {
     h('a', { class: 'btn', href: '/panel/login' }, 'Se connecter avec Discord')));
 }
 
-// ---------- fenêtre modale ----------
 function modal(title, sub) {
   const body = h('div', { class: 'modal-body' });
   const onKey = (e) => { if (e.key === 'Escape') close(); };
@@ -115,7 +112,6 @@ const toggle = (title, hint, checked, onchange) => {
   return h('label', { class: 'toggle' }, h('span', {}, h('b', {}, title), h('small', {}, hint)), box);
 };
 
-// ---------- mise en page ----------
 const NAV = [
   ['dash', 'dash', 'Tableau de bord'], ['servers', 'servers', 'Serveurs'], ['migrations', 'migrations', 'Migrations'],
   ['bots', 'bots', 'Bots'], ['members', 'members', 'Membres vérifiés'], ['account', 'account', 'Compte'],
@@ -138,7 +134,6 @@ const pageHead = (title, sub, ...actions) => h('div', { class: 'head headbar' },
   h('div', {}, h('h1', {}, title), sub && h('p', { class: 'sub' }, sub)),
   actions.length ? h('div', { class: 'row' }, actions) : null);
 
-// ---------- données agrégées ----------
 let overview = null;
 async function loadOverview() {
   const rows = await Promise.all(me.guilds.filter((g) => g.botIn).map((g) =>
@@ -148,7 +143,6 @@ async function loadOverview() {
 }
 const botFirst = () => me.bots[0];
 
-// ---------- tableau de bord ----------
 async function dashView() {
   shell(h('p', { class: 'loading' }, 'Chargement…'));
   const rows = await loadOverview();
@@ -174,7 +168,6 @@ async function dashView() {
   ]);
 }
 
-// ---------- serveurs ----------
 function addServerModal() {
   const m = modal('Ajouter un serveur', 'Invite un de tes bots sur le serveur, il apparaîtra ensuite ici.');
   m.body.append(me.bots.length
@@ -211,7 +204,6 @@ const icon = (g) => g.icon
   ? h('img', { class: 'ico', src: `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64`, alt: '' })
   : h('span', { class: 'ico', 'aria-hidden': 'true' }, (g.name || '?')[0].toUpperCase());
 
-// ---------- migration (ajout de membres) ----------
 function migrationModal(d) {
   const m = modal('Migration', `Ajoute des membres sauvegardés dans ${d.name}.`);
   const canRestore = d.sources.length || d.botTotal;
@@ -249,7 +241,6 @@ function migrationModal(d) {
     h('p', { class: 'hint', style: 'margin:.5rem 0 0' }, `Heure de ton navigateur${tz ? ' (' + tz + ')' : ''}. Entre 1 minute et 30 jours à l'avance.`));
 }
 
-// ---------- page Migrations ----------
 let migTab = 'active';
 const SCHED = { pending: 'En attente', running: 'Lancement…', started: 'Lancée', failed: 'Échec', missed: 'Manquée', cancelled: 'Annulée' };
 async function migrationsView() {
@@ -293,7 +284,6 @@ async function migrationsView() {
   shell([pageHead('Migrations', 'Ajoute des membres sauvegardés dans tes serveurs.'), tabs, migTab === 'active' ? activeList : histList]);
 }
 
-// ---------- bots ----------
 function addBotModal() {
   const m = modal('Ajouter un bot', 'Chaque bot est le tien : il apparaît sur ton serveur avec ton nom et ton image.');
   const f = {};
@@ -349,7 +339,6 @@ function botsView() {
   ]);
 }
 
-// ---------- membres vérifiés ----------
 let memFilter = 'all', memQuery = '';
 async function membersView() {
   shell(h('p', { class: 'loading' }, 'Chargement…'));
@@ -379,7 +368,6 @@ async function membersView() {
   shell([pageHead('Membres vérifiés', 'Les membres sauvegardés sur tes serveurs.'), h('div', { class: 'row filters' }, sel, q), list]);
 }
 
-// ---------- compte ----------
 function accountView() {
   shell([
     pageHead('Compte', 'Ton profil et ta session.'),
@@ -391,7 +379,6 @@ function accountView() {
   ]);
 }
 
-// ---------- réglages d'un serveur ----------
 const protBody = (p, patch) => ({ min_age_days: p.min_age_days, anti_alt: p.anti_alt, anti_vpn: p.anti_vpn, log_ip: p.log_ip, log_email: p.log_email, ...patch });
 async function saveProt(d, patch, msg, box) {
   try {
@@ -508,7 +495,6 @@ function guildView(g, d) {
   ]);
 }
 
-// ---------- page de vérification personnalisable ----------
 const lum = (hex) => {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
@@ -606,7 +592,6 @@ function pageCard(d) {
         h('p', { class: 'hint fine' }, 'L\'aperçu se met à jour pendant la saisie ; il faut enregistrer pour l\'appliquer.'))));
 }
 
-// ---------- actions ----------
 const TOP = { dash: dashView, servers: serversView, migrations: migrationsView, bots: botsView, members: membersView, account: accountView };
 async function select(id) {
   clearInterval(poll);
@@ -649,7 +634,7 @@ async function startRestore(d, source, btn, bar, stat) {
 
 async function scheduleRestore(d, source, input, m) {
   if (!source) return;
-  const runAt = input.value ? new Date(input.value).getTime() : NaN; // datetime-local = heure locale du navigateur
+  const runAt = input.value ? new Date(input.value).getTime() : NaN;
   if (!Number.isFinite(runAt)) return toast('Choisis une date et une heure.', true);
   if (!confirm(`Planifier l'ajout des membres le ${stamp(runAt)} ?`)) return;
   try {
