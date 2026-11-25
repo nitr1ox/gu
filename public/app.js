@@ -368,7 +368,9 @@ async function membersView() {
   shell([pageHead('Membres vérifiés', 'Les membres sauvegardés sur tes serveurs.'), h('div', { class: 'row filters' }, sel, q), list]);
 }
 
-function accountView() {
+const MAX_API_KEYS = 5;
+
+async function accountView() {
   shell([
     pageHead('Compte', 'Ton profil et ta session.'),
     card('Profil',
@@ -376,7 +378,68 @@ function accountView() {
       h('div', { class: 'sumrow' }, h('span', {}, 'ID Discord'), h('b', { class: 'mono' }, me.user.id)),
       h('div', { class: 'sumrow' }, h('span', {}, 'Bots'), h('b', {}, String(me.bots.length))),
       h('div', { class: 'row', style: 'margin-top:1.1rem' }, h('button', { class: 'btn ghost', onclick: logout }, 'Se déconnecter'))),
+    card('Clés API', h('p', { class: 'loading' }, 'Chargement…')),
   ]);
+  let keys = [];
+  try { ({ keys } = await api('/keys')); } catch (e) { return fail(e); }
+  if (current !== 'account') return;
+  shell([
+    pageHead('Compte', 'Ton profil et ta session.'),
+    card('Profil',
+      h('div', { class: 'sumrow' }, h('span', {}, 'Pseudo'), h('b', {}, me.user.username)),
+      h('div', { class: 'sumrow' }, h('span', {}, 'ID Discord'), h('b', { class: 'mono' }, me.user.id)),
+      h('div', { class: 'sumrow' }, h('span', {}, 'Bots'), h('b', {}, String(me.bots.length))),
+      h('div', { class: 'row', style: 'margin-top:1.1rem' }, h('button', { class: 'btn ghost', onclick: logout }, 'Se déconnecter'))),
+    keysCard(keys),
+  ]);
+}
+
+function keysCard(keys) {
+  return card('Clés API',
+    h('p', { class: 'hint' }, `Pour utiliser l'API directement, sans passer par un bot (${keys.length}/${MAX_API_KEYS}). La commande `, h('code', {}, '/apikey'), ' dans un de tes bots en crée une aussi.'),
+    keys.length
+      ? h('div', { class: 'tablewrap' }, h('table', {},
+        h('thead', {}, h('tr', {}, h('th', {}, 'Nom'), h('th', {}, 'Clé'), h('th', {}, 'Créée'), h('th', {}, 'Dernière utilisation'), h('th', {}))),
+        h('tbody', {}, keys.map((k) => h('tr', {},
+          h('td', {}, k.name),
+          h('td', { class: 'mono' }, `${k.prefix}…`),
+          h('td', {}, stamp(k.created)),
+          h('td', {}, k.last_used ? stamp(k.last_used) : 'jamais'),
+          h('td', {}, h('button', { class: 'btn ghost sm', onclick: () => revokeKey(k) }, 'Révoquer')))))))
+      : h('p', { class: 'empty' }, 'Aucune clé pour l\'instant.'),
+    h('div', { class: 'row', style: 'margin-top:1.1rem' },
+      h('button', { class: 'btn', disabled: keys.length >= MAX_API_KEYS, onclick: createKeyModal }, 'Créer une clé')));
+}
+
+function createKeyModal() {
+  const m = modal('Créer une clé API', 'Donne-lui un nom pour la retrouver plus tard (facultatif).');
+  const input = h('input', { type: 'text', placeholder: 'Ex. Script de restauration', maxlength: '40' });
+  const btn = h('button', {
+    class: 'btn',
+    onclick: async () => {
+      btn.disabled = true;
+      try {
+        const { name, key } = await api('/keys', { method: 'POST', body: { name: input.value } });
+        m.close();
+        newKeyModal(name, key);
+      } catch (e) { btn.disabled = false; fail(e); }
+    },
+  }, 'Créer');
+  m.body.append(h('div', { class: 'stack' }, input, btn));
+}
+
+function newKeyModal(name, key) {
+  const m = modal(`Clé « ${name} » créée`, 'Copie-la maintenant : elle ne sera plus jamais affichée.');
+  m.body.append(h('div', { class: 'stack' },
+    h('code', { class: 'keybox' }, key),
+    h('button', { class: 'btn', onclick: () => copy(key) }, 'Copier'),
+    h('button', { class: 'btn ghost', onclick: () => { m.close(); select('account'); } }, 'Fermer')));
+}
+
+async function revokeKey(k) {
+  if (!confirm(`Révoquer la clé « ${k.name} » ? Elle cessera de fonctionner immédiatement.`)) return;
+  try { await api(`/keys/${k.id}`, { method: 'DELETE' }); toast('Clé révoquée'); select('account'); }
+  catch (e) { fail(e); }
 }
 
 const protBody = (p, patch) => ({ min_age_days: p.min_age_days, anti_alt: p.anti_alt, anti_vpn: p.anti_vpn, log_ip: p.log_ip, log_email: p.log_email, ...patch });
