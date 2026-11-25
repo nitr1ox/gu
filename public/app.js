@@ -80,22 +80,71 @@ function loginView() {
     h('a', { class: 'btn', href: '/panel/login' }, 'Se connecter avec Discord')));
 }
 
+const isGuildPage = (c) => !['dash', 'servers', 'bots'].includes(c);
 function shell(content) {
-  const list = h('ul', {}, me.guilds.map((g) => h('li', {},
-    h('button', { class: 'srv' + (g.botIn ? '' : ' off'), 'aria-current': String(g.id === current),
-      title: g.botIn ? '' : 'Aucun de tes bots dans ce serveur', onclick: () => select(g.id) },
-      icon(g), h('span', { class: 'name' }, g.name), h('span', { class: 'dot', 'aria-hidden': 'true' })))));
-  const botsBtn = h('button', { class: 'srv', 'aria-current': String(current === 'bots'), onclick: () => select('bots') },
-    h('span', { class: 'ico', 'aria-hidden': 'true' }, 'B'), h('span', { class: 'name' }, 'Mes bots'));
+  const NAV = [['dash', '▣', 'Tableau de bord'], ['servers', '☰', 'Serveurs'], ['bots', '⚙', 'Mes bots']];
+  const nav = NAV.map(([key, ico, label]) => h('button', {
+    class: 'srv', 'aria-current': String(current === key || (key === 'servers' && isGuildPage(current))), onclick: () => select(key) },
+    h('span', { class: 'ico', 'aria-hidden': 'true' }, ico), h('span', { class: 'name' }, label)));
   app.replaceChildren(h('div', { class: 'shell' },
     h('nav', { class: 'rail', 'aria-label': 'Navigation' },
       h('div', { class: 'brand' }, h('span', { class: 'logo' }, 'AK'), 'ak47bot'),
-      h('div', { class: 'nav-top' }, botsBtn),
-      h('div', { class: 'rail-title' }, 'Serveurs'), list,
-      h('div', { class: 'who' }, h('span', {}, me.user.username),
-        h('button', { onclick: logout }, 'Déconnexion'))),
+      h('div', { class: 'nav-top' }, nav),
+      h('div', { class: 'who' }, h('span', {}, me.user.username), h('button', { onclick: logout }, 'Déconnexion'))),
     h('main', {}, content)));
   window.scrollTo(0, 0);
+}
+
+// ---------- tableau de bord et liste des serveurs ----------
+let overview = null;
+async function loadOverview() {
+  const rows = await Promise.all(me.guilds.filter((g) => g.botIn).map((g) =>
+    api('/guilds/' + g.id).then((d) => ({ g, d })).catch(() => null)));
+  overview = rows.filter(Boolean);
+  return overview;
+}
+
+async function dashView() {
+  shell(h('p', { class: 'loading' }, 'Chargement…'));
+  const rows = await loadOverview();
+  const saved = rows.reduce((n, r) => n + r.d.saved, 0);
+  const pending = rows.reduce((n, r) => n + (r.d.schedules || []).filter((x) => x.status === 'pending').length, 0);
+  const events = rows.flatMap((r) => r.d.audit.map((a) => ({ ...a, server: r.g.name })))
+    .sort((x, y) => y.ts - x.ts).slice(0, 8);
+  shell([
+    h('div', { class: 'head' }, h('h1', {}, `Bonjour ${me.user.username}`),
+      h('p', { class: 'sub' }, 'Vue d\'ensemble de tes serveurs et de tes bots.')),
+    h('div', { class: 'stats' },
+      h('div', { class: 'stat' }, h('b', {}, String(rows.length)), h('span', {}, 'Serveurs suivis')),
+      h('div', { class: 'stat' }, h('b', {}, String(saved)), h('span', {}, 'Membres sauvegardés')),
+      h('div', { class: 'stat' }, h('b', {}, String(me.bots.filter((b) => b.online).length) + ' / ' + me.bots.length), h('span', {}, 'Bots en ligne')),
+      h('div', { class: 'stat' }, h('b', {}, String(pending)), h('span', {}, 'Restaurations planifiées'))),
+    card('Activité récente', events.length
+      ? h('div', { class: 'tablewrap' }, h('table', {},
+        h('thead', {}, h('tr', {}, h('th', {}, 'Date'), h('th', {}, 'Serveur'), h('th', {}, 'Action'))),
+        h('tbody', {}, events.map((a) => h('tr', {}, h('td', {}, stamp(a.ts)), h('td', {}, a.server),
+          h('td', { class: 'wrap' + (DANGER.has(a.action) ? ' warn' : '') }, (ACTIONS[a.action] || (() => a.action))(a.detail)))))))
+      : h('p', { class: 'empty' }, 'Aucune activité pour l\'instant.')),
+  ]);
+}
+
+async function serversView() {
+  shell(h('p', { class: 'loading' }, 'Chargement…'));
+  const rows = await loadOverview();
+  const byId = Object.fromEntries(rows.map((r) => [r.g.id, r.d]));
+  shell([
+    h('div', { class: 'head' }, h('h1', {}, 'Serveurs'), h('p', { class: 'sub' }, 'Choisis un serveur à configurer.')),
+    me.guilds.length ? h('div', { class: 'srvgrid' }, me.guilds.map((g) => {
+      const d = byId[g.id];
+      return h('div', { class: 'card srvcard' },
+        h('div', { class: 'srvtop' }, icon(g), h('div', {}, h('b', {}, g.name),
+          h('div', { class: 'hint' }, d ? `${plural(d.saved, 'membre')} · ${d.verifyUrl ? 'vérification active' : 'rôle à choisir'}` : 'Aucun de tes bots ici'))),
+        h('div', { class: 'row' },
+          d ? h('button', { class: 'btn', onclick: () => select(g.id) }, 'Configurer')
+            : me.bots.map((b) => h('a', { class: 'btn ghost sm', href: b.inviteUrl, target: '_blank', rel: 'noopener' }, `Inviter ${b.name}`)),
+          !d && !me.bots.length && h('button', { class: 'btn', onclick: () => select('bots') }, 'Ajouter mon bot')));
+    })) : h('p', { class: 'empty' }, 'Tu n\'es administrateur d\'aucun serveur.'),
+  ]);
 }
 
 function botsView() {
@@ -166,11 +215,11 @@ function guildView(g, d) {
   const pending = (d.schedules || []).filter((x) => x.status === 'pending').length;
   const TABS = [
     ['general', 'Général'],
-    ['page', 'Page de vérification'],
-    ['protection', 'Protections'],
+    ['page', 'Visuel'],
+    ['protection', 'Sécurité'],
     ['restore', 'Restauration', pending || null],
     ['members', 'Membres', d.saved || null],
-    ['activity', 'Sécurité et journal'],
+    ['activity', 'Journal'],
   ];
   if (guildTabFor !== d.id) { guildTab = 'general'; guildTabFor = d.id; }
   const tabBar = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Sections du serveur' },
@@ -206,6 +255,12 @@ function guildView(g, d) {
     ],
     protection: [
       d.verifyUrl ? protectionCard(d) : needRole('les protections'),
+    card('Alertes de sécurité',
+      h('p', { class: 'lead hint' }, `Le bot poste un message dans ce salon quand une restauration de ${d.massRestore} membres ou plus est lancée, quand des membres sont retirés en rafale, ou quand un bot est supprimé avec ses données. Choisis un salon réservé aux admins.`),
+      h('div', { class: 'row' }, alertSel,
+        h('button', { class: 'btn', onclick: async () => {
+          try { await api(`/guilds/${d.id}/alerts`, { method: 'POST', body: { channelId: alertSel.value } });
+            toast(alertSel.value ? 'Alertes activées (message de test envoyé)' : 'Alertes désactivées'); select(d.id); } catch (e) { fail(e); } } }, 'Enregistrer'))),
     ],
     restore: [
     card('Restauration et ajout de membres',
@@ -242,12 +297,6 @@ function guildView(g, d) {
         : h('p', { class: 'empty' }, 'Personne ne s\'est encore vérifié. Partage le lien de vérification.')),
     ],
     activity: [
-    card('Alertes de sécurité',
-      h('p', { class: 'lead hint' }, `Le bot poste un message dans ce salon quand une restauration de ${d.massRestore} membres ou plus est lancée, quand des membres sont retirés en rafale, ou quand un bot est supprimé avec ses données. Choisis un salon réservé aux admins.`),
-      h('div', { class: 'row' }, alertSel,
-        h('button', { class: 'btn', onclick: async () => {
-          try { await api(`/guilds/${d.id}/alerts`, { method: 'POST', body: { channelId: alertSel.value } });
-            toast(alertSel.value ? 'Alertes activées (message de test envoyé)' : 'Alertes désactivées'); select(d.id); } catch (e) { fail(e); } } }, 'Enregistrer'))),
     card('Journal d\'activité',
       d.audit.length
         ? h('div', { class: 'tablewrap' }, h('table', {},
@@ -261,7 +310,7 @@ function guildView(g, d) {
   };
 
   shell([
-    h('div', { class: 'head' }, h('h1', {}, d.name),
+    h('div', { class: 'head' }, h('button', { class: 'btn ghost sm back', onclick: () => select('servers') }, '← Serveurs'), h('h1', {}, d.name),
       h('p', { class: 'sub' }, `${plural(d.saved, 'membre')} ${d.saved > 1 ? 'sauvegardés' : 'sauvegardé'}`)),
 
     tabBar,
@@ -422,6 +471,8 @@ async function select(id) {
   clearInterval(poll);
   current = id;
   if (id === 'bots') { guildTabFor = null; return botsView(); }
+  if (id === 'dash') return dashView();
+  if (id === 'servers') { guildTabFor = null; return serversView(); }
   const g = me.guilds.find((x) => x.id === id);
   if (!g.botIn) return noBotView(g);
   try {
@@ -483,5 +534,5 @@ async function logout() {
 function fail(e) { if (e.auth) { me = null; loginView(); } else toast(e.message, true); }
 
 (async () => {
-  try { me = await api('/me'); current = 'bots'; botsView(); } catch (e) { loginView(); }
+  try { me = await api('/me'); select('dash'); } catch (e) { loginView(); }
 })();
