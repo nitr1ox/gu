@@ -83,13 +83,13 @@ h1{font-size:1.4rem;line-height:1.25;margin:0 0 10px;overflow-wrap:anywhere}
 const NOTICE = '<div class="notice"><p>En autorisant l\'application, tu permets à ce serveur de te réinviter automatiquement s\'il est un jour perdu, '
   + 'et à son propriétaire de t\'ajouter à ses autres serveurs où ce bot est présent.</p>'
   + '<p>Le bot enregistre ton ID Discord, ton pseudo et cette autorisation. Elle ne donne accès ni à ton mot de passe, ni à tes messages, ni à ton compte. '
-  + 'Tu peux la retirer à tout moment avec /deletemydata ou dans Discord (Paramètres, Applications autorisées).</p></div>';
+  + 'Tu peux la retirer à tout moment dans Discord (Paramètres, Applications autorisées) : tes données sont alors supprimées automatiquement sous quelques jours.</p></div>';
 
 // Si l'anti-alts ou l'anti-VPN est actif, le membre doit en être informé (adresse IP utilisée pour le contrôle)
 const IP_NOTE = '<p>Ce serveur contrôle ta connexion (VPN, comptes multiples) : une empreinte chiffrée de ton adresse IP peut être conservée, jamais l\'adresse elle-même.</p>';
 const logNote = (ip, email) => {
   const what = [ip && 'ton adresse IP', email && 'ton adresse e-mail'].filter(Boolean).join(' et ');
-  return what ? `<p>Ce serveur a choisi d\'enregistrer ${what} (chiffré), visible par ses administrateurs. ${email ? 'Discord te demandera l\'accès à ton e-mail. ' : ''}Supprimable avec /deletemydata.</p>` : '';
+  return what ? `<p>Ce serveur a choisi d\'enregistrer ${what} (chiffré), visible par ses administrateurs. ${email ? 'Discord te demandera l\'accès à ton e-mail. ' : ''}Supprimé automatiquement si tu retires l\'application dans Discord.</p>` : '';
 };
 const NOTICE_FN = (ipCheck, logIp, logEmail) => NOTICE.replace('</div>', `${ipCheck ? IP_NOTE : ''}${logNote(logIp, logEmail)}</div>`);
 

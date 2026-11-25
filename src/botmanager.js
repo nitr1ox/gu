@@ -1,5 +1,5 @@
 // Fait tourner un bot Discord par client (jeton fourni par chaque utilisateur depuis le panel).
-const { Client, GatewayIntentBits, Events, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Events } = require('discord.js');
 const db = require('./db');
 const { encrypt, decrypt } = require('./crypto');
 const oauth = require('./oauth');
@@ -7,25 +7,9 @@ const oauth = require('./oauth');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const bots = new Map(); // botId -> { client, owner_id, token, secret }
 
-const commands = [
-  new SlashCommandBuilder().setName('deletemydata').setDescription('Supprime toutes tes données stockées par ce bot').toJSON(),
-];
-
-async function onInteraction(i) {
-  if (!i.isChatInputCommand() || i.commandName !== 'deletemydata') return;
-  try {
-    const n = await db.deleteAllOfUser(i.user.id);
-    await i.reply({ content: `Données supprimées (${n} entrée(s)).`, ephemeral: true });
-  } catch (e) {
-    console.error(e);
-    i.reply({ content: 'Une erreur est survenue.', ephemeral: true }).catch(() => {});
-  }
-}
-
 async function launch({ id, token, secret, owner_id }) {
   await stop(id);
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
-  client.on(Events.InteractionCreate, onInteraction);
   client.on(Events.Error, (e) => console.error(`bot ${id}`, e.message));
   await new Promise((resolve, reject) => {
     const t = setTimeout(() => { client.destroy(); reject(new Error('Délai dépassé lors de la connexion du bot.')); }, 20000);
@@ -36,7 +20,7 @@ async function launch({ id, token, secret, owner_id }) {
     client.destroy();
     throw Object.assign(new Error('Le Client ID ne correspond pas à ce token.'), { code: 'IdMismatch' });
   }
-  await client.application.commands.set(commands).catch(() => {});
+  await client.application.commands.set([]).catch(() => {}); // retire d'anciennes commandes (ex. /deletemydata)
   bots.set(id, { client, owner_id, token, secret });
   return client.user.username;
 }
