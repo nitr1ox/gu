@@ -9,6 +9,7 @@ const verifypage = require('./verifypage');
 const protection = require('./protection');
 const { decrypt } = require('./crypto');
 const manager = require('./botmanager');
+const apikeys = require('./apikeys');
 const services = require('./services');
 const schedule = require('./schedule');
 const audit = require('./audit');
@@ -117,7 +118,6 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  const MAX_KEYS = 5;
   api.get('/keys', wrap(async (req, res) => {
     const keys = (await db.apiKeysOf(req.session.user_id)).sort((a, b) => b.created - a.created)
       .map((k) => ({ id: k.id, name: k.name, prefix: k.prefix, created: k.created, last_used: k.last_used || null }));
@@ -125,13 +125,13 @@ module.exports = () => {
   }));
 
   api.post('/keys', sensitiveLimit, wrap(async (req, res) => {
-    const uid = req.session.user_id;
-    const name = String(req.body.name || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 40) || 'Ma clé';
-    if ((await db.apiKeysOf(uid)).length >= MAX_KEYS) return res.status(400).json({ error: `Maximum ${MAX_KEYS} clés. Révoque-en une d'abord.` });
-    const key = 'ak_' + crypto.randomBytes(32).toString('hex');
-    const hash = crypto.createHash('sha256').update(key).digest('hex');
-    const id = await db.createApiKey({ user_id: uid, name, hash, prefix: key.slice(0, 8), created: Date.now(), last_used: null });
-    res.status(201).json({ id, name, key });
+    try {
+      const { id, name, key } = await apikeys.createPersonalKey(req.session.user_id, req.body.name);
+      res.status(201).json({ id, name, key });
+    } catch (e) {
+      if (e.code === 'MAX_KEYS') return res.status(400).json({ error: e.message });
+      throw e;
+    }
   }));
 
   api.delete('/keys/:id', wrap(async (req, res) => {

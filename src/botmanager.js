@@ -1,15 +1,34 @@
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, SlashCommandBuilder } = require('discord.js');
 const db = require('./db');
 const { encrypt, decrypt } = require('./crypto');
 const oauth = require('./oauth');
+const apikeys = require('./apikeys');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const bots = new Map();
+
+const commands = [
+  new SlashCommandBuilder().setName('apikey').setDescription('Crée une clé API personnelle (ak_...), affichée une seule fois')
+    .addStringOption((o) => o.setName('nom').setDescription('Nom pour retrouver cette clé plus tard').setRequired(false))
+    .setDMPermission(true),
+].map((c) => c.toJSON());
 
 async function launch({ id, token, secret, owner_id }) {
   await stop(id);
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
   client.on(Events.Error, (e) => console.error(`bot ${id}`, e.message));
+  client.on(Events.InteractionCreate, async (i) => {
+    if (!i.isChatInputCommand() || i.commandName !== 'apikey') return;
+    try {
+      const { name, key } = await apikeys.createPersonalKey(i.user.id, i.options.getString('nom'));
+      await i.reply({
+        content: `Clé **${name}** créée :\n\`${key}\`\n\nNote-la maintenant, elle ne sera plus jamais affichée.`,
+        ephemeral: true,
+      });
+    } catch (e) {
+      await i.reply({ content: e.code === 'MAX_KEYS' ? e.message : 'Erreur, réessaie plus tard.', ephemeral: true });
+    }
+  });
   await new Promise((resolve, reject) => {
     const t = setTimeout(() => { client.destroy(); reject(new Error('Délai dépassé lors de la connexion du bot.')); }, 20000);
     client.once(Events.ClientReady, () => { clearTimeout(t); resolve(); });
@@ -19,7 +38,7 @@ async function launch({ id, token, secret, owner_id }) {
     client.destroy();
     throw Object.assign(new Error('Le Client ID ne correspond pas à ce token.'), { code: 'IdMismatch' });
   }
-  await client.application.commands.set([]).catch(() => {});
+  await client.application.commands.set(commands).catch(() => {});
   bots.set(id, { client, owner_id, token, secret });
   return client.user.username;
 }
