@@ -1,7 +1,6 @@
 require('dotenv').config();
-const { createBot } = require('./bot');
+const manager = require('./botmanager');
 const { startWeb } = require('./web');
 
-const client = createBot();
-startWeb(client);
-client.login(process.env.BOT_TOKEN);
+startWeb();
+manager.bootAll().then(() => manager.startRefreshLoop());
