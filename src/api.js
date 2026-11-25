@@ -29,16 +29,33 @@ module.exports = () => {
 
   // ---- authentification + limite de débit (120 req/min par clé) ----
   const hits = new Map();
-  r.use((req, res, next) => {
-    const given = sha((req.get('authorization') || '').replace(/^Bearer\s+/i, ''));
-    const idx = entries.findIndex((e) => crypto.timingSafeEqual(e.hash, given));
-    if (idx < 0) return res.status(401).json({ error: 'Clé API invalide.' });
-    req.apiClient = entries[idx].label;
-    const minute = Math.floor(Date.now() / 60000);
-    const h = hits.get(idx);
-    if (!h || h.minute !== minute) hits.set(idx, { minute, n: 1 });
-    else if (++h.n > 120) return res.status(429).json({ error: 'Trop de requêtes.' });
-    next();
+  r.use(async (req, res, next) => {
+    try {
+      const raw = (req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+      const given = sha(raw);
+      let bucket;
+      const idx = entries.findIndex((e) => crypto.timingSafeEqual(e.hash, given));
+      if (idx >= 0) { // clé « client » (variable API_KEYS) : agit pour plusieurs utilisateurs
+        req.apiClient = entries[idx].label;
+        bucket = `c:${idx}`;
+      } else if (raw.startsWith('ak_') && raw.length <= 100) { // clé personnelle créée dans le panel : agit pour son propriétaire seulement
+        const k = await db.getApiKeyByHash(given.toString('hex'));
+        if (!k) return res.status(401).json({ error: 'Clé API invalide.' });
+        req.apiUser = k.user_id;
+        bucket = `u:${k.id}`;
+        if (!k.last_used || Date.now() - k.last_used > 10 * 60 * 1000) db.touchApiKey(k.id).catch(() => {});
+      } else {
+        return res.status(401).json({ error: 'Clé API invalide.' });
+      }
+      const minute = Math.floor(Date.now() / 60000);
+      const h = hits.get(bucket);
+      if (!h || h.minute !== minute) hits.set(bucket, { minute, n: 1 });
+      else if (++h.n > 120) return res.status(429).json({ error: 'Trop de requêtes.' });
+      next();
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Erreur interne.' });
+    }
   });
 
   const wrap = (fn) => (req, res) => fn(req, res).catch((e) => {
@@ -63,11 +80,23 @@ module.exports = () => {
     throw new services.ApiError(403, "Ce panel n'appartient pas à cette clé API.");
   };
 
+  // ID de l'utilisateur concerné. Clé personnelle : toujours son propriétaire (user_id facultatif, mais s'il est donné il doit lui correspondre).
+  // Clé client : user_id obligatoire, et le panel doit appartenir à cette clé.
+  const who = async (req, v) => {
+    if (req.apiUser) {
+      if (v != null && v !== '' && String(v) !== req.apiUser) throw new services.ApiError(403, 'Cette clé ne peut agir que pour son propriétaire.');
+      return req.apiUser;
+    }
+    const userId = uid(v);
+    await owned(req, userId);
+    return userId;
+  };
+
   // Crée (ou retrouve) le panel d'un utilisateur. Idempotent.
   r.post('/panels', wrap(async (req, res) => {
-    const userId = uid(req.body.user_id);
-    const existing = await owned(req, userId);
-    await db.savePanel(userId, {
+    const userId = await who(req, req.body.user_id);
+    const existing = req.apiUser ? true : !!(await db.getPanel(userId)); // clé personnelle : pas de panel à créer
+    if (!req.apiUser) await db.savePanel(userId, {
       user_id: userId,
       api_client: req.apiClient,
       username: String(req.body.username || '').slice(0, 64),
@@ -85,22 +114,20 @@ module.exports = () => {
 
   // Bots, serveurs et stats d'un utilisateur
   r.get('/panels/:userId', wrap(async (req, res) => {
-    const userId = uid(req.params.userId);
-    if (!(await owned(req, userId))) return res.status(404).json({ error: "Cet utilisateur n'a pas de panel." });
+    const userId = await who(req, req.params.userId);
+    if (!req.apiUser && !(await db.getPanel(userId))) return res.status(404).json({ error: "Cet utilisateur n'a pas de panel." });
     res.json({ panel_url: services.panelUrl(), ...(await services.overview(userId)) });
   }));
 
   // Stats d'un serveur (l'utilisateur doit y être admin avec un de ses bots)
   r.get('/guilds/:guildId/stats', wrap(async (req, res) => {
-    const userId = uid(req.query.user_id);
-    await owned(req, userId);
+    const userId = await who(req, req.query.user_id);
     res.json(await services.guildStats(userId, String(req.params.guildId)));
   }));
 
   // Ajoute les membres sauvegardés dans un serveur : body { user_id, source } (source = ID d'un serveur, ou "all")
   r.post('/guilds/:guildId/members/add', wrap(async (req, res) => {
-    const userId = uid(req.body.user_id);
-    await owned(req, userId);
+    const userId = await who(req, req.body.user_id);
     const jobId = await services.startRestore({
       userId, guildId: String(req.params.guildId), source: req.body.source,
       actor: { id: userId, name: String((await db.getPanel(userId))?.username || userId), via: 'api' } });
@@ -109,8 +136,7 @@ module.exports = () => {
 
   // Planifie l'ajout de membres à une heure précise : body { user_id, source, run_at } (run_at = timestamp ms/s ou ISO 8601 avec fuseau)
   r.post('/guilds/:guildId/members/schedule', wrap(async (req, res) => {
-    const userId = uid(req.body.user_id);
-    await owned(req, userId);
+    const userId = await who(req, req.body.user_id);
     const guildId = String(req.params.guildId);
     if (!(await services.findGuild(userId, guildId))) throw new services.ApiError(404, "Serveur introuvable, ou tu n'y es pas admin avec un de tes bots.");
     const out = await schedule.create({ userId, guildId, source: req.body.source, runAt: schedule.parseRunAt(req.body.run_at),
@@ -120,8 +146,7 @@ module.exports = () => {
 
   // Planifications d'un serveur
   r.get('/guilds/:guildId/members/schedules', wrap(async (req, res) => {
-    const userId = uid(req.query.user_id);
-    await owned(req, userId);
+    const userId = await who(req, req.query.user_id);
     const guildId = String(req.params.guildId);
     if (!(await services.findGuild(userId, guildId))) throw new services.ApiError(404, "Serveur introuvable, ou tu n'y es pas admin avec un de tes bots.");
     res.json({ schedules: await schedule.list(guildId) });
@@ -129,8 +154,7 @@ module.exports = () => {
 
   // Annule une planification en attente
   r.delete('/guilds/:guildId/members/schedules/:id', wrap(async (req, res) => {
-    const userId = uid(req.query.user_id);
-    await owned(req, userId);
+    const userId = await who(req, req.query.user_id);
     const guildId = String(req.params.guildId);
     if (!(await services.findGuild(userId, guildId))) throw new services.ApiError(404, "Serveur introuvable, ou tu n'y es pas admin avec un de tes bots.");
     await schedule.cancel({ guildId, scheduleId: req.params.id,
@@ -140,8 +164,7 @@ module.exports = () => {
 
   // Progression d'un ajout de membres
   r.get('/jobs/:jobId', wrap(async (req, res) => {
-    const userId = uid(req.query.user_id);
-    await owned(req, userId);
+    const userId = await who(req, req.query.user_id);
     const job = await db.getJob(String(req.params.jobId));
     if (!job || job.user_id !== userId) return res.status(404).json({ error: 'Introuvable.' });
     const { status, total, done, added, already, failed } = job;

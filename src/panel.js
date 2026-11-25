@@ -124,6 +124,29 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
+  // ----- clés d'API personnelles : agissent uniquement pour leur propriétaire -----
+  const MAX_KEYS = 5;
+  api.get('/keys', wrap(async (req, res) => {
+    const keys = (await db.apiKeysOf(req.session.user_id)).sort((a, b) => b.created - a.created)
+      .map((k) => ({ id: k.id, name: k.name, prefix: k.prefix, created: k.created, last_used: k.last_used || null }));
+    res.json({ keys });
+  }));
+
+  api.post('/keys', sensitiveLimit, wrap(async (req, res) => {
+    const uid = req.session.user_id;
+    const name = String(req.body.name || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 40) || 'Ma clé';
+    if ((await db.apiKeysOf(uid)).length >= MAX_KEYS) return res.status(400).json({ error: `Maximum ${MAX_KEYS} clés. Révoque-en une d'abord.` });
+    const key = 'ak_' + crypto.randomBytes(32).toString('hex');
+    const hash = crypto.createHash('sha256').update(key).digest('hex');
+    const id = await db.createApiKey({ user_id: uid, name, hash, prefix: key.slice(0, 8), created: Date.now(), last_used: null });
+    res.status(201).json({ id, name, key }); // la clé n'est montrée qu'ici, une seule fois
+  }));
+
+  api.delete('/keys/:id', wrap(async (req, res) => {
+    if (!(await db.deleteApiKey(String(req.params.id), req.session.user_id))) return res.status(404).json({ error: 'Clé introuvable.' });
+    res.json({ ok: true });
+  }));
+
   // ----- bots -----
   api.post('/bots', sensitiveLimit, wrap(async (req, res) => {
     const uid = req.session.user_id;

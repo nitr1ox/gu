@@ -109,6 +109,21 @@ module.exports = {
     (await col('members').where('guild_id', '==', guildId).count().get()).data().count,
 
   // --- panels crees via l'API ---
+  // --- clés d'API personnelles (seul le hash SHA-256 est stocké) ---
+  createApiKey: async (data) => (await col('api_keys').add(data)).id,
+  apiKeysOf: async (userId) => (await col('api_keys').where('user_id', '==', userId).get()).docs.map(withId),
+  getApiKeyByHash: async (hash) => {
+    const snap = await col('api_keys').where('hash', '==', hash).limit(1).get();
+    return snap.empty ? null : withId(snap.docs[0]);
+  },
+  touchApiKey: (id) => col('api_keys').doc(id).update({ last_used: Date.now() }),
+  deleteApiKey: async (id, userId) => {
+    const d = await col('api_keys').doc(id).get();
+    if (!d.exists || d.data().user_id !== userId) return false;
+    await d.ref.delete();
+    return true;
+  },
+
   savePanel: (userId, data) => col('panels').doc(userId).set(data, { merge: true }),
   getPanel: async (userId) => withId(await col('panels').doc(userId).get()),
 
