@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="Documentation de l'API ak47bot v1 : panels, statistiques, ajout de membres et planification.">
+  <title>Documentation API · ak47bot</title>
+  <link rel="stylesheet" href="/home.css">
+  <style>
+    .docs-wrap{display:grid;grid-template-columns:15rem minmax(0,1fr);gap:clamp(1.5rem,4vw,3rem);align-items:start;padding-top:clamp(2rem,5vw,3.5rem);padding-bottom:4rem}
+    .docs-nav{position:sticky;top:5.5rem;font-size:.88rem;border-right:1px solid var(--line);padding-right:1.25rem}
+    .docs-nav b{display:block;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;margin:1.1rem 0 .4rem}
+    .docs-nav b:first-child{margin-top:0}
+    .docs-nav a{display:block;color:var(--muted);text-decoration:none;padding:.22rem 0}
+    .docs-nav a:hover{color:var(--ink)}
+    .docs article{min-width:0}
+    .docs article h1{font-size:clamp(1.8rem,4vw,2.4rem);letter-spacing:-.02em;margin-bottom:.5rem}
+    .docs article>p.lead{color:#b8b8b8;max-width:42rem;margin-bottom:2.2rem}
+    .docs section{padding:2.2rem 0;border-top:1px solid var(--line)}
+    .docs section:first-of-type{border-top:none;padding-top:0}
+    .docs h2{font-size:1.5rem;letter-spacing:-.01em;margin-bottom:.9rem}
+    .docs h3{font-size:1.05rem;margin:1.6rem 0 .6rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+    .docs h3 code{font-size:.85em}
+    .docs p{color:#c7c7c7;max-width:42rem;margin:.6rem 0}
+    .docs ul, .docs ol{color:#c7c7c7;max-width:42rem;margin:.6rem 0;padding-left:1.2rem}
+    .docs li{margin:.3rem 0}
+    .method{display:inline-flex;align-items:center;justify-content:center;font:700 .72rem var(--mono);padding:.2rem .5rem;border-radius:5px;letter-spacing:.02em}
+    .method.get{background:rgba(92,193,131,.14);color:var(--ok)}
+    .method.post{background:rgba(210,162,60,.16);color:var(--brass)}
+    .method.delete{background:rgba(238,123,107,.14);color:var(--danger)}
+    pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem;overflow-x:auto;font:13px/1.6 var(--mono);max-width:46rem}
+    pre code{background:none;border:none;padding:0;font-size:1em}
+    table{border-collapse:collapse;width:100%;max-width:46rem;margin:.8rem 0;font-size:.9rem}
+    th,td{text-align:left;padding:.5rem .7rem;border-bottom:1px solid var(--line)}
+    th{color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+    td code,th code{white-space:nowrap}
+    .note{border-left:2px solid var(--brass);padding:.2rem 0 .2rem 1rem;color:#c7c7c7;max-width:42rem;margin:1rem 0}
+    @media (max-width:860px){.docs-wrap{grid-template-columns:1fr}.docs-nav{position:static;border-right:none;border-bottom:1px solid var(--line);padding-right:0;padding-bottom:1rem;display:flex;flex-wrap:wrap;gap:0 1.2rem}.docs-nav b{width:100%;margin:.6rem 0 .2rem}.docs-nav b:first-child{margin-top:0}}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/" aria-label="ak47bot, accueil"><span class="logo" aria-hidden="true">AK</span>ak47bot</a>
+    <nav aria-label="Navigation principale">
+      <a href="/#fonctionnement">Fonctionnement</a>
+      <a href="/docs">Documentation</a>
+      <a class="btn sm" href="/panel/">Ouvrir le panel</a>
+    </nav>
+  </header>
+
+  <main class="docs docs-wrap">
+    <nav class="docs-nav" aria-label="Sommaire de la documentation">
+      <b>Démarrer</b>
+      <a href="#vue-d-ensemble">Vue d'ensemble</a>
+      <a href="#authentification">Authentification</a>
+      <a href="#limites">Limites de débit</a>
+      <a href="#erreurs">Erreurs</a>
+      <b>Panels</b>
+      <a href="#panels-creer">Créer un panel</a>
+      <a href="#panels-lire">Lire un panel</a>
+      <b>Serveurs</b>
+      <a href="#guild-stats">Statistiques</a>
+      <b>Membres</b>
+      <a href="#membres-add">Ajouter des membres</a>
+      <a href="#membres-job">Suivre un job</a>
+      <b>Planification</b>
+      <a href="#sched-creer">Créer</a>
+      <a href="#sched-lister">Lister</a>
+      <a href="#sched-annuler">Annuler</a>
+      <b>Référence</b>
+      <a href="#exemples">Exemples</a>
+      <a href="#env">Variables d'environnement</a>
+    </nav>
+
+    <article>
+      <h1>Documentation de l'API</h1>
+      <p class="lead">API REST serveur-à-serveur pour créer des panels et piloter l'ajout de membres sauvegardés, leur planification et les statistiques, depuis un autre bot ou un script.</p>
+
+      <section id="vue-d-ensemble">
+        <h2>Vue d'ensemble</h2>
+        <ul>
+          <li><b>URL de base</b> : <code>https://ton-domaine.com/v1</code></li>
+          <li><b>Format</b> : JSON en entrée et en sortie (<code>Content-Type: application/json</code> pour les requêtes avec corps).</li>
+          <li><b>Taille maximale d'un corps</b> : 10 Ko.</li>
+          <li><b>Cache</b> : les réponses ne sont jamais mises en cache (<code>Cache-Control: no-store</code>).</li>
+          <li><b>Identifiants Discord</b> : <code>user_id</code>, <code>guildId</code> et <code>source</code> sont des IDs Discord de 17 à 20 chiffres (sauf <code>source = "all"</code>).</li>
+        </ul>
+      </section>
+
+      <section id="authentification">
+        <h2>Authentification</h2>
+        <p>Chaque requête doit contenir l'en-tête :</p>
+        <pre><code>Authorization: Bearer &lt;clé&gt;</code></pre>
+
+        <h3>Clé client (serveur)</h3>
+        <p>Définie par l'hébergeur dans la variable d'environnement <code>API_KEYS</code>, au format <code>nom:secret</code>, séparées par des virgules :</p>
+        <pre><code>API_KEYS=monbot1:secret1,monbot2:secret2</code></pre>
+        <ul>
+          <li>Le <b>nom</b> (<code>a-z A-Z 0-9 _ -</code>, 32 caractères max) identifie le client. Sans nom, la clé est nommée <code>key1</code>, <code>key2</code>, etc.</li>
+          <li>Le client agit pour <b>plusieurs utilisateurs</b> : <code>user_id</code> est <b>obligatoire</b> à chaque appel (ID Discord de la personne qui a lancé la commande dans l'autre bot).</li>
+          <li><b>Cloisonnement</b> : un panel créé par une clé n'est ensuite accessible que par cette même clé (sinon <code>403</code>).</li>
+          <li><b>Migration</b> : <code>API_LEGACY_CLIENT=nom</code> fait adopter par ce client les anciens panels créés avant le cloisonnement.</li>
+        </ul>
+        <p class="note">Le secret est comparé via son empreinte SHA-256 ; il n'est jamais stocké en clair.</p>
+
+        <h3>Clé personnelle</h3>
+        <p>Créée par un utilisateur dans le panel (5 clés maximum par compte). Elle commence par <code>ak_</code>.</p>
+        <ul>
+          <li>Elle n'agit que pour <b>son propriétaire</b>.</li>
+          <li><code>user_id</code> est <b>facultatif</b> ; s'il est fourni, il doit correspondre au propriétaire (sinon <code>403</code>).</li>
+          <li>Aucun panel n'est créé par <code>POST /panels</code> : le panel existe déjà.</li>
+          <li>Elle fonctionne même si <code>API_KEYS</code> est vide.</li>
+        </ul>
+      </section>
+
+      <section id="limites">
+        <h2>Limites de débit</h2>
+        <table>
+          <thead><tr><th>Limite</th><th>Valeur</th><th>Si dépassée</th></tr></thead>
+          <tbody>
+            <tr><td>Par adresse IP (avant authentification)</td><td>300 req / min</td><td><code>429</code> + <code>RateLimit-*</code>, <code>Retry-After</code></td></tr>
+            <tr><td>Par clé (client ou personnelle)</td><td>120 req / min</td><td><code>429</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="erreurs">
+        <h2>Erreurs</h2>
+        <p>Toutes les erreurs ont la même forme :</p>
+        <pre><code>{ "error": "Message lisible." }</code></pre>
+        <table>
+          <thead><tr><th>Code</th><th>Signification</th></tr></thead>
+          <tbody>
+            <tr><td><code>400</code></td><td>Paramètre invalide ou manquant (<code>user_id</code>, <code>source</code>, <code>run_at</code>…)</td></tr>
+            <tr><td><code>401</code></td><td>Clé API absente ou invalide</td></tr>
+            <tr><td><code>403</code></td><td>Panel d'une autre clé, clé personnelle utilisée pour un autre utilisateur, ou source non configurée</td></tr>
+            <tr><td><code>404</code></td><td>Panel, serveur, job ou planification introuvable, ou route inconnue</td></tr>
+            <tr><td><code>409</code></td><td>Restauration déjà en cours, ou planification qui n'est plus en attente</td></tr>
+            <tr><td><code>429</code></td><td>Trop de requêtes, ou trop de planifications en attente</td></tr>
+            <tr><td><code>500</code></td><td>Erreur interne</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="panels-creer">
+        <h2>Panels</h2>
+        <h3><span class="method post">POST</span> <code>/panels</code></h3>
+        <p>Crée le panel d'un utilisateur, ou le retrouve s'il existe déjà (idempotent).</p>
+        <table>
+          <thead><tr><th>Champ</th><th>Type</th><th>Obligatoire</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>user_id</code></td><td>string</td><td>oui (clé client)</td><td>ID Discord de l'utilisateur</td></tr>
+            <tr><td><code>username</code></td><td>string</td><td>non</td><td>Nom affiché dans le journal d'audit (64 car. max)</td></tr>
+          </tbody>
+        </table>
+        <p><code>201</code> si le panel vient d'être créé, <code>200</code> sinon :</p>
+        <pre><code>{
+  "created": true,
+  "panel_url": "https://ton-domaine.com/panel/",
+  "redirect_uri": "https://ton-domaine.com/callback",
+  "has_bot": false,
+  "bots": [],
+  "totals": { "bots": 0, "saved_members": 0 }
+}</code></pre>
+        <p class="note"><code>redirect_uri</code> est l'URL à ajouter dans l'onglet OAuth2 de l'application Discord de l'utilisateur.</p>
+      </section>
+
+      <section id="panels-lire">
+        <h3><span class="method get">GET</span> <code>/panels/:userId</code></h3>
+        <p>Renvoie les bots, serveurs et statistiques d'un utilisateur.</p>
+        <pre><code>{
+  "panel_url": "https://ton-domaine.com/panel/",
+  "bots": [
+    {
+      "id": "123456789012345678",
+      "name": "MonBot",
+      "online": true,
+      "invite_url": "https://discord.com/oauth2/authorize?client_id=...",
+      "saved_members": 2000,
+      "guilds": [
+        { "id": "987654321098765432", "name": "Mon serveur", "configured": true, "saved_members": 1284 }
+      ]
+    }
+  ],
+  "totals": { "bots": 1, "saved_members": 2000 }
+}</code></pre>
+        <ul>
+          <li><code>guilds</code> est limité à 50 serveurs par bot.</li>
+          <li><code>configured</code> vaut <code>true</code> quand le rôle « Vérifié » est choisi pour ce serveur.</li>
+          <li><code>404</code> si l'utilisateur n'a pas de panel (clé client).</li>
+        </ul>
+      </section>
+
+      <section id="guild-stats">
+        <h2>Serveurs</h2>
+        <p>Pour tous les appels de cette section, l'utilisateur doit être <b>propriétaire ou administrateur</b> du serveur et avoir un de ses bots dedans. Sinon : <code>404</code> « Serveur introuvable, ou tu n'y es pas admin avec un de tes bots. »</p>
+        <h3><span class="method get">GET</span> <code>/guilds/:guildId/stats?user_id=...</code></h3>
+        <pre><code>{
+  "guild": { "id": "987654321098765432", "name": "Mon serveur", "member_count": 2100 },
+  "bot": { "id": "123456789012345678", "name": "MonBot" },
+  "configured": true,
+  "saved_members": 1284,
+  "bot_total_saved_members": 2000,
+  "restoring": false
+}</code></pre>
+        <ul>
+          <li><code>saved_members</code> : membres sauvegardés pour ce serveur.</li>
+          <li><code>bot_total_saved_members</code> : membres sauvegardés par ce bot, tous serveurs confondus.</li>
+          <li><code>restoring</code> : <code>true</code> si une restauration est en cours sur ce serveur.</li>
+        </ul>
+      </section>
+
+      <section id="membres-add">
+        <h2>Ajout de membres (restauration)</h2>
+        <p>Les jetons des membres appartiennent à l'application du bot qui les a collectés : le serveur cible doit contenir <b>le même bot</b> que le serveur source.</p>
+        <h3><span class="method post">POST</span> <code>/guilds/:guildId/members/add</code></h3>
+        <p>Lance immédiatement l'ajout des membres sauvegardés dans le serveur <code>guildId</code> (cible).</p>
+        <table>
+          <thead><tr><th>Champ</th><th>Type</th><th>Obligatoire</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>user_id</code></td><td>string</td><td>oui (clé client)</td><td>ID Discord de l'utilisateur</td></tr>
+            <tr><td><code>source</code></td><td>string</td><td>oui</td><td>ID du serveur d'origine, ou <code>"all"</code></td></tr>
+          </tbody>
+        </table>
+        <p><code>202</code> :</p>
+        <pre><code>{ "job_id": "abc123" }</code></pre>
+        <table>
+          <thead><tr><th>Code</th><th>Message</th></tr></thead>
+          <tbody>
+            <tr><td><code>400</code></td><td>La source doit être un autre serveur.</td></tr>
+            <tr><td><code>400</code></td><td>Ce serveur utilisait un autre bot : invite ce même bot ici pour restaurer.</td></tr>
+            <tr><td><code>403</code></td><td>Tu n'as pas configuré le bot sur ce serveur source.</td></tr>
+            <tr><td><code>409</code></td><td>Une restauration est déjà en cours.</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>Une seule restauration à la fois par serveur cible.</li>
+          <li>Environ 1,1 seconde par membre (limites de débit Discord) : ~18 minutes pour 1 000 membres.</li>
+          <li>À partir de 50 membres (<code>ALERT_MASS_RESTORE</code>), une alerte est envoyée au serveur.</li>
+          <li>Les membres qui ont retiré l'application ne peuvent plus être ajoutés et sont supprimés de la base.</li>
+        </ul>
+      </section>
+
+      <section id="membres-job">
+        <h3><span class="method get">GET</span> <code>/jobs/:jobId?user_id=...</code></h3>
+        <p>Progression d'un ajout de membres (seul l'utilisateur qui l'a lancé peut le consulter).</p>
+        <pre><code>{ "status": "running", "total": 1284, "done": 600, "added": 540, "already": 40, "failed": 20 }</code></pre>
+        <table>
+          <thead><tr><th>Champ</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>status</code></td><td><code>running</code>, <code>done</code> ou <code>error</code></td></tr>
+            <tr><td><code>total</code></td><td>Nombre de membres à traiter</td></tr>
+            <tr><td><code>done</code></td><td>Nombre de membres déjà traités</td></tr>
+            <tr><td><code>added</code></td><td>Membres ajoutés au serveur</td></tr>
+            <tr><td><code>already</code></td><td>Membres déjà présents</td></tr>
+            <tr><td><code>failed</code></td><td>Échecs (jeton expiré/révoqué, refus de Discord…)</td></tr>
+          </tbody>
+        </table>
+        <p class="note"><code>404</code> « Introuvable. » si le job n'existe pas ou n'appartient pas à l'utilisateur.</p>
+      </section>
+
+      <section id="sched-creer">
+        <h2>Planification</h2>
+        <h3><span class="method post">POST</span> <code>/guilds/:guildId/members/schedule</code></h3>
+        <table>
+          <thead><tr><th>Champ</th><th>Type</th><th>Obligatoire</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>user_id</code></td><td>string</td><td>oui (clé client)</td><td>ID Discord de l'utilisateur</td></tr>
+            <tr><td><code>source</code></td><td>string</td><td>oui</td><td>ID du serveur d'origine, ou <code>"all"</code></td></tr>
+            <tr><td><code>run_at</code></td><td>number/string</td><td>oui</td><td>Heure d'exécution</td></tr>
+          </tbody>
+        </table>
+        <p><b>Formats de <code>run_at</code></b> : timestamp en millisecondes ou en secondes (nombre ou chaîne), ou date ISO 8601 <b>avec fuseau</b> (<code>2026-12-01T20:00:00+01:00</code> ou <code>...Z</code>). Une date sans fuseau est refusée.</p>
+        <p><b>Contraintes</b> : au moins 1 minute dans le futur, au plus 30 jours ; au moins un membre sauvegardé dans la source ; 5 planifications en attente max par serveur (<code>MAX_SCHEDULES_PER_GUILD</code>, <code>429</code> au-delà) ; mêmes contrôles qu'un lancement immédiat, refaits à l'heure prévue.</p>
+        <p><code>201</code> :</p>
+        <pre><code>{ "schedule_id": "xyz789", "run_at": 1796151600000, "expected": 1284 }</code></pre>
+        <p class="note">Si le serveur est éteint à l'heure prévue, la planification n'est pas exécutée en retard au-delà de 10 minutes (<code>SCHEDULE_GRACE_MINUTES</code>) : elle passe en statut <code>missed</code>.</p>
+      </section>
+
+      <section id="sched-lister">
+        <h3><span class="method get">GET</span> <code>/guilds/:guildId/members/schedules?user_id=...</code></h3>
+        <p>Liste les 10 dernières planifications du serveur.</p>
+        <pre><code>{
+  "schedules": [
+    {
+      "id": "xyz789",
+      "source": "111111111111111111",
+      "source_name": "Ancien serveur",
+      "expected": 1284,
+      "run_at": 1796151600000,
+      "status": "pending",
+      "by": "pseudo",
+      "job_id": null,
+      "error": null
+    }
+  ]
+}</code></pre>
+        <table>
+          <thead><tr><th>Statut</th><th>Signification</th></tr></thead>
+          <tbody>
+            <tr><td><code>pending</code></td><td>En attente</td></tr>
+            <tr><td><code>started</code></td><td>Lancée (voir <code>job_id</code>)</td></tr>
+            <tr><td><code>failed</code></td><td>Non lancée à l'heure prévue (voir <code>error</code>)</td></tr>
+            <tr><td><code>missed</code></td><td>Serveur indisponible à l'heure prévue</td></tr>
+            <tr><td><code>cancelled</code></td><td>Annulée</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="sched-annuler">
+        <h3><span class="method delete">DELETE</span> <code>/guilds/:guildId/members/schedules/:id?user_id=...</code></h3>
+        <p>Annule une planification en attente.</p>
+        <pre><code>{ "ok": true }</code></pre>
+        <p class="note"><code>404</code> « Planification introuvable. » · <code>409</code> si elle n'est plus en attente.</p>
+      </section>
+
+      <section id="exemples">
+        <h2>Exemples</h2>
+        <p><b>Créer un panel (clé client)</b></p>
+        <pre><code>curl -X POST https://ton-domaine.com/v1/panels \
+  -H "Authorization: Bearer secret1" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"123456789012345678","username":"pseudo"}'</code></pre>
+
+        <p><b>Statistiques d'un serveur (clé personnelle)</b></p>
+        <pre><code>curl "https://ton-domaine.com/v1/guilds/987654321098765432/stats" \
+  -H "Authorization: Bearer ak_xxxxxxxx..."</code></pre>
+
+        <p><b>Lancer un ajout de membres, puis suivre le job</b></p>
+        <pre><code>curl -X POST https://ton-domaine.com/v1/guilds/987654321098765432/members/add \
+  -H "Authorization: Bearer secret1" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"123456789012345678","source":"111111111111111111"}'
+
+curl "https://ton-domaine.com/v1/jobs/abc123?user_id=123456789012345678" \
+  -H "Authorization: Bearer secret1"</code></pre>
+
+        <p><b>Planifier pour le 1er décembre à 20 h (heure de Paris)</b></p>
+        <pre><code>curl -X POST https://ton-domaine.com/v1/guilds/987654321098765432/members/schedule \
+  -H "Authorization: Bearer secret1" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"123456789012345678","source":"all","run_at":"2026-12-01T20:00:00+01:00"}'</code></pre>
+
+        <p><b>Node.js</b></p>
+        <pre><code>const res = await fetch('https://ton-domaine.com/v1/guilds/987654321098765432/stats?user_id=123456789012345678', {
+  headers: { Authorization: 'Bearer secret1' },
+});
+const data = await res.json();
+if (!res.ok) throw new Error(data.error);
+console.log(data.saved_members);</code></pre>
+      </section>
+
+      <section id="env">
+        <h2>Variables d'environnement liées à l'API</h2>
+        <table>
+          <thead><tr><th>Variable</th><th>Rôle</th><th>Défaut</th></tr></thead>
+          <tbody>
+            <tr><td><code>API_KEYS</code></td><td>Clés client, <code>nom:secret</code> séparées par des virgules</td><td>vide</td></tr>
+            <tr><td><code>API_LEGACY_CLIENT</code></td><td>Nom du client qui adopte les anciens panels</td><td>aucun</td></tr>
+            <tr><td><code>ALERT_MASS_RESTORE</code></td><td>Seuil d'alerte pour une restauration massive</td><td>50</td></tr>
+            <tr><td><code>MAX_SCHEDULES_PER_GUILD</code></td><td>Planifications en attente par serveur</td><td>5</td></tr>
+            <tr><td><code>SCHEDULE_GRACE_MINUTES</code></td><td>Retard toléré avant de marquer une planification comme manquée</td><td>10</td></tr>
+            <tr><td><code>REDIRECT_URI</code></td><td>Sert à construire <code>panel_url</code> et <code>redirect_uri</code></td><td>—</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </article>
+  </main>
+
+  <footer class="foot">
+    <a class="brand" href="/"><span class="logo" aria-hidden="true">AK</span>ak47bot</a>
+    <nav aria-label="Pied de page">
+      <a href="/panel/">Panel</a>
+      <a href="/docs">Documentation</a>
+    </nav>
+  </footer>
+</body>
+</html>
