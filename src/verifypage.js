@@ -80,10 +80,10 @@ h1{font-size:1.4rem;line-height:1.25;margin:0 0 10px;overflow-wrap:anywhere}
 @media(prefers-reduced-motion:reduce){.btn{transition:none}}`;
 
 // Mention affichée en permanence, non modifiable : le membre doit savoir ce qu'il autorise.
-const NOTICE = '<div class="notice"><p>En continuant, tu autorises ce serveur à te réinviter automatiquement s\'il est un jour perdu, '
-  + 'et son propriétaire à t\'ajouter à ses autres serveurs où ce bot est présent.</p>'
-  + '<p>Données stockées : ton ID Discord, ton pseudo et un jeton d\'accès chiffré. '
-  + 'Tu peux tout supprimer avec la commande /deletemydata du bot, ou en retirant l\'application dans Discord (Paramètres, Applications autorisées).</p></div>';
+const NOTICE = '<div class="notice"><p>En autorisant l\'application, tu permets à ce serveur de te réinviter automatiquement s\'il est un jour perdu, '
+  + 'et à son propriétaire de t\'ajouter à ses autres serveurs où ce bot est présent.</p>'
+  + '<p>Le bot enregistre ton ID Discord, ton pseudo et cette autorisation. Elle ne donne accès ni à ton mot de passe, ni à tes messages, ni à ton compte. '
+  + 'Tu peux la retirer à tout moment avec /deletemydata ou dans Discord (Paramètres, Applications autorisées).</p></div>';
 
 // Si l'anti-alts ou l'anti-VPN est actif, le membre doit en être informé (adresse IP utilisée pour le contrôle)
 const IP_NOTE = '<p>Ce serveur contrôle ta connexion (VPN, comptes multiples) : une empreinte chiffrée de ton adresse IP peut être conservée, jamais l\'adresse elle-même.</p>';

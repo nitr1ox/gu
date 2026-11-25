@@ -7,11 +7,11 @@ exports.post = (channel, guildId, page = {}) => {
   const embed = new EmbedBuilder()
     .setTitle(fill(page?.title || 'Vérification'))
     .setDescription(
-      'Clique sur le bouton pour te vérifier. Si le serveur est un jour perdu, tu pourras être réinvité automatiquement, ' +
-      'et le propriétaire pourra aussi t\'ajouter à ses autres serveurs où ce bot est présent. ' +
-      'Cela reste actif jusqu\'à ce que tu retires l\'application dans Discord (Paramètres > Applications autorisées).\n\n' +
-      'Données stockées : ton ID Discord, ton pseudo et un jeton d\'accès chiffré. ' +
-      'Tu peux tout supprimer à tout moment avec `/deletemydata`.');
+      'Clique sur le bouton pour te vérifier. En autorisant l\'application, tu permets au serveur de te réinviter ' +
+      'automatiquement s\'il est un jour perdu, et à son propriétaire de t\'ajouter à ses autres serveurs où ce bot est présent.\n\n' +
+      'Le bot enregistre ton ID Discord, ton pseudo et cette autorisation. ' +
+      'Elle ne donne accès ni à ton mot de passe, ni à tes messages, ni à ton compte.\n' +
+      'Tu peux la retirer à tout moment : Paramètres > Applications autorisées, ou avec `/deletemydata`.');
   if (page?.accent) embed.setColor(page.accent);
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setLabel(fill(page?.button || 'Se vérifier')).setStyle(ButtonStyle.Link).setURL(exports.verifyUrl(guildId)));
