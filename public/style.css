@@ -197,3 +197,62 @@ input[type=number] { width: 100%; max-width: 10rem; background: var(--surface); 
 .srvtop .ico { width: 40px; height: 40px; border-radius: 10px; font-size: 1rem; }
 .back { margin-bottom: .75rem; }
 @media (max-width: 760px) { .rail .nav-top { display: flex; overflow-x: auto; flex: none; } }
+
+/* ---- refonte façon RestoreCord ---- */
+.svg { display: inline-grid; place-items: center; flex: none; color: var(--rail-muted); }
+.srv[aria-current=true] .svg, .srv:hover .svg { color: var(--rail-ink); }
+.btn .svg { color: inherit; }
+.headbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.grow { flex: 1 1 0; min-width: 0; }
+.nowrap { flex-wrap: nowrap; }
+.btn.green { background: #1f8a4c; color: #fff; }
+.btn.green:hover { background: #26a35a; }
+.btn.block { width: 100%; margin-top: 1rem; }
+.btn.iconbtn { padding: .5rem .6rem; }
+.stack { display: grid; gap: .5rem; }
+.mono { font-family: var(--mono); font-size: .85rem; }
+
+/* cartes serveurs / bots */
+.srvtop .grow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.pill { font-size: .78rem; font-weight: 600; padding: .15rem .55rem; border-radius: 99px; background: var(--ok-soft); color: var(--ok); font-variant-numeric: tabular-nums; }
+.linkrow { display: flex; align-items: center; gap: .5rem; min-width: 0; color: var(--muted); font-size: .85rem; }
+.linkrow a { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.dotlive { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--muted); flex: none; align-self: flex-start; margin: .2rem .1rem 0 0; }
+.dotlive.on { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+
+/* modale */
+.overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, .72); display: grid; place-items: center; padding: 1rem; z-index: 20; }
+.modal { width: min(34rem, 100%); max-height: 90vh; overflow: auto; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 14px; padding: 1.25rem 1.35rem; }
+.modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
+.modal-body select { margin-bottom: .25rem; }
+.summary { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: .8rem 1rem; margin-top: 1rem; }
+.cap { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: .3rem; }
+.sumrow { display: flex; justify-content: space-between; gap: 1rem; padding: .3rem 0; font-size: .9rem; }
+.sumrow span { color: var(--muted); }
+.sumrow b { text-align: right; overflow-wrap: anywhere; }
+
+/* onglets segmentés (Migrations) */
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; padding: .25rem; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 1rem; }
+.segbtn { background: none; border: 0; padding: .55rem; border-radius: 9px; color: var(--muted); font-weight: 600; cursor: pointer; }
+.segbtn[aria-selected=true] { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
+
+/* migrations */
+.migcard { display: grid; gap: .6rem; }
+.migtop { display: flex; align-items: center; gap: .8rem; }
+.migtop .ico { width: 40px; height: 40px; border-radius: 10px; font-size: 1rem; }
+.bar2 { display: flex; height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.bar2 i.g { background: #22c55e; } .bar2 i.r { background: #ef4444; }
+.badge.bad { background: var(--danger-soft); color: var(--danger); }
+
+/* interrupteurs */
+.toggle { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .85rem 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.toggle:last-of-type { border-bottom: 0; }
+.toggle b { display: block; font-size: .92rem; }
+.toggle small { color: var(--muted); font-size: .82rem; display: block; max-width: 56ch; }
+.switch { appearance: none; -webkit-appearance: none; width: 2.5rem; height: 1.4rem; border-radius: 99px; background: var(--line-strong); position: relative; cursor: pointer; flex: none; transition: background .15s; border: 0; padding: 0; }
+.switch::after { content: ""; position: absolute; top: .18rem; left: .18rem; width: 1.04rem; height: 1.04rem; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch:checked { background: #22a05a; }
+.switch:checked::after { transform: translateX(1.1rem); }
+
+.filters { margin-bottom: 1rem; }
+.filters select { flex: 0 1 14rem; }

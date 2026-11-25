@@ -33,10 +33,6 @@ async function api(path, { method = 'GET', body } = {}) {
   return d;
 }
 
-const icon = (g) => g.icon
-  ? h('img', { class: 'ico', src: `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64`, alt: '' })
-  : h('span', { class: 'ico', 'aria-hidden': 'true' }, (g.name || '?')[0].toUpperCase());
-
 function when(ts) {
   const d = ts - Date.now() / 1000;
   if (d < 0) return 'expiré';
@@ -72,6 +68,23 @@ const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 const card = (title, ...kids) => h('section', { class: 'card' }, title && h('h2', {}, title), ...kids);
 const copy = (text) => navigator.clipboard.writeText(text).then(() => toast('Lien copié'), () => toast('Copie impossible', true));
 
+const ICONS = {
+  dash: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  servers: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/>',
+  migrations: '<path d="M4 8h14l-3-3M20 16H6l3 3"/>',
+  bots: '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 4v4M9 13h.01M15 13h.01"/>',
+  members: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 11l2 2 4-4"/>',
+  account: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.5 18.5c1.2-2 3-3 5.5-3s4.3 1 5.5 3"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+};
+const svg = (name) => {
+  const s = h('span', { class: 'svg', 'aria-hidden': 'true' });
+  s.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
+  return s;
+};
+
 function loginView() {
   app.replaceChildren(h('div', { class: 'login' },
     h('div', { class: 'logo' }, 'AK'),
@@ -80,12 +93,38 @@ function loginView() {
     h('a', { class: 'btn', href: '/panel/login' }, 'Se connecter avec Discord')));
 }
 
-const isGuildPage = (c) => !['dash', 'servers', 'bots'].includes(c);
+// ---------- fenêtre modale ----------
+function modal(title, sub) {
+  const body = h('div', { class: 'modal-body' });
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); clearInterval(poll); };
+  const ov = h('div', { class: 'overlay', onmousedown: (e) => { if (e.target === ov) close(); } },
+    h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+      h('div', { class: 'modal-head' }, h('div', {}, h('h2', {}, title), sub && h('p', { class: 'hint', style: 'margin:.2rem 0 0' }, sub)),
+        h('button', { class: 'btn ghost sm', onclick: close, 'aria-label': 'Fermer' }, '✕')),
+      body));
+  document.addEventListener('keydown', onKey);
+  document.body.append(ov);
+  return { body, close };
+}
+
+const toggle = (title, hint, checked, onchange) => {
+  const box = h('input', { type: 'checkbox', class: 'switch', 'aria-label': title });
+  box.checked = !!checked;
+  box.addEventListener('change', () => onchange(box.checked, box));
+  return h('label', { class: 'toggle' }, h('span', {}, h('b', {}, title), h('small', {}, hint)), box);
+};
+
+// ---------- mise en page ----------
+const NAV = [
+  ['dash', 'dash', 'Tableau de bord'], ['servers', 'servers', 'Serveurs'], ['migrations', 'migrations', 'Migrations'],
+  ['bots', 'bots', 'Bots'], ['members', 'members', 'Membres vérifiés'], ['account', 'account', 'Compte'],
+];
+const isGuildPage = (c) => !NAV.some(([k]) => k === c);
 function shell(content) {
-  const NAV = [['dash', '▣', 'Tableau de bord'], ['servers', '☰', 'Serveurs'], ['bots', '⚙', 'Mes bots']];
   const nav = NAV.map(([key, ico, label]) => h('button', {
     class: 'srv', 'aria-current': String(current === key || (key === 'servers' && isGuildPage(current))), onclick: () => select(key) },
-    h('span', { class: 'ico', 'aria-hidden': 'true' }, ico), h('span', { class: 'name' }, label)));
+    svg(ico), h('span', { class: 'name' }, label)));
   app.replaceChildren(h('div', { class: 'shell' },
     h('nav', { class: 'rail', 'aria-label': 'Navigation' },
       h('div', { class: 'brand' }, h('span', { class: 'logo' }, 'AK'), 'ak47bot'),
@@ -95,7 +134,11 @@ function shell(content) {
   window.scrollTo(0, 0);
 }
 
-// ---------- tableau de bord et liste des serveurs ----------
+const pageHead = (title, sub, ...actions) => h('div', { class: 'head headbar' },
+  h('div', {}, h('h1', {}, title), sub && h('p', { class: 'sub' }, sub)),
+  actions.length ? h('div', { class: 'row' }, actions) : null);
+
+// ---------- données agrégées ----------
 let overview = null;
 async function loadOverview() {
   const rows = await Promise.all(me.guilds.filter((g) => g.botIn).map((g) =>
@@ -103,7 +146,9 @@ async function loadOverview() {
   overview = rows.filter(Boolean);
   return overview;
 }
+const botFirst = () => me.bots[0];
 
+// ---------- tableau de bord ----------
 async function dashView() {
   shell(h('p', { class: 'loading' }, 'Chargement…'));
   const rows = await loadOverview();
@@ -112,13 +157,14 @@ async function dashView() {
   const events = rows.flatMap((r) => r.d.audit.map((a) => ({ ...a, server: r.g.name })))
     .sort((x, y) => y.ts - x.ts).slice(0, 8);
   shell([
-    h('div', { class: 'head' }, h('h1', {}, `Bonjour ${me.user.username}`),
-      h('p', { class: 'sub' }, 'Vue d\'ensemble de tes serveurs et de tes bots.')),
+    pageHead(`Bonjour ${me.user.username}`, 'Vue d\'ensemble de tes serveurs et de tes bots.'),
     h('div', { class: 'stats' },
-      h('div', { class: 'stat' }, h('b', {}, String(rows.length)), h('span', {}, 'Serveurs suivis')),
-      h('div', { class: 'stat' }, h('b', {}, String(saved)), h('span', {}, 'Membres sauvegardés')),
+      h('div', { class: 'stat' }, h('b', {}, String(rows.length)), h('span', {}, 'Serveurs')),
+      h('div', { class: 'stat' }, h('b', {}, String(saved)), h('span', {}, 'Membres vérifiés')),
       h('div', { class: 'stat' }, h('b', {}, String(me.bots.filter((b) => b.online).length) + ' / ' + me.bots.length), h('span', {}, 'Bots en ligne')),
-      h('div', { class: 'stat' }, h('b', {}, String(pending)), h('span', {}, 'Restaurations planifiées'))),
+      h('div', { class: 'stat' }, h('b', {}, String(pending)), h('span', {}, 'Migrations planifiées'))),
+    !me.bots.length && card('Pour commencer', h('p', { class: 'hint' }, 'Ajoute ton premier bot, invite-le sur ton serveur, puis configure la vérification.'),
+      h('button', { class: 'btn', onclick: () => select('bots') }, 'Ajouter un bot')),
     card('Activité récente', events.length
       ? h('div', { class: 'tablewrap' }, h('table', {},
         h('thead', {}, h('tr', {}, h('th', {}, 'Date'), h('th', {}, 'Serveur'), h('th', {}, 'Action'))),
@@ -128,26 +174,128 @@ async function dashView() {
   ]);
 }
 
+// ---------- serveurs ----------
+function addServerModal() {
+  const m = modal('Ajouter un serveur', 'Invite un de tes bots sur le serveur, il apparaîtra ensuite ici.');
+  m.body.append(me.bots.length
+    ? [h('p', { class: 'hint' }, 'Choisis le bot à inviter. Place son rôle au-dessus du rôle de vérification une fois qu\'il est sur le serveur.'),
+      h('div', { class: 'stack' }, me.bots.map((b) => h('a', { class: 'btn', href: b.inviteUrl, target: '_blank', rel: 'noopener' }, `Inviter ${b.name}`)))]
+    : [h('p', { class: 'hint' }, 'Tu n\'as pas encore de bot.'),
+      h('button', { class: 'btn', onclick: () => { m.close(); select('bots'); } }, 'Ajouter un bot')]);
+}
+
 async function serversView() {
   shell(h('p', { class: 'loading' }, 'Chargement…'));
   const rows = await loadOverview();
-  const byId = Object.fromEntries(rows.map((r) => [r.g.id, r.d]));
   shell([
-    h('div', { class: 'head' }, h('h1', {}, 'Serveurs'), h('p', { class: 'sub' }, 'Choisis un serveur à configurer.')),
-    me.guilds.length ? h('div', { class: 'srvgrid' }, me.guilds.map((g) => {
-      const d = byId[g.id];
-      return h('div', { class: 'card srvcard' },
-        h('div', { class: 'srvtop' }, icon(g), h('div', {}, h('b', {}, g.name),
-          h('div', { class: 'hint' }, d ? `${plural(d.saved, 'membre')} · ${d.verifyUrl ? 'vérification active' : 'rôle à choisir'}` : 'Aucun de tes bots ici'))),
-        h('div', { class: 'row' },
-          d ? h('button', { class: 'btn', onclick: () => select(g.id) }, 'Configurer')
-            : me.bots.map((b) => h('a', { class: 'btn ghost sm', href: b.inviteUrl, target: '_blank', rel: 'noopener' }, `Inviter ${b.name}`)),
-          !d && !me.bots.length && h('button', { class: 'btn', onclick: () => select('bots') }, 'Ajouter mon bot')));
-    })) : h('p', { class: 'empty' }, 'Tu n\'es administrateur d\'aucun serveur.'),
+    pageHead('Serveurs', 'Gère tes serveurs.',
+      h('button', { class: 'btn ghost', onclick: addServerModal }, svg('plus'), 'Ajouter un serveur')),
+    rows.length ? h('div', { class: 'srvgrid' }, rows.map(({ g, d }) => h('div', { class: 'card srvcard' },
+      h('div', { class: 'srvtop' }, icon(g), h('div', { class: 'grow' }, h('b', {}, g.name),
+        h('div', { class: 'hint' }, d.verifyUrl ? 'Vérification active' : 'Rôle de vérification à choisir')),
+        h('span', { class: 'pill', title: 'Membres vérifiés' }, String(d.saved))),
+      d.verifyUrl
+        ? h('div', { class: 'linkrow' }, svg('link'), h('a', { href: d.verifyUrl, target: '_blank', rel: 'noopener' }, d.verifyUrl),
+          h('button', { class: 'btn ghost sm', onclick: () => copy(d.verifyUrl) }, 'Copier'))
+        : null,
+      h('div', { class: 'row nowrap' },
+        h('button', { class: 'btn green grow', onclick: () => migrationModal(d) }, 'Ajouter les membres'),
+        h('button', { class: 'btn ghost iconbtn', 'aria-label': 'Réglages', title: 'Réglages', onclick: () => select(g.id) }, svg('gear')))
+    ))) : h('p', { class: 'empty' }, me.bots.length
+      ? 'Aucun serveur pour l\'instant. Invite un de tes bots avec « Ajouter un serveur ».'
+      : 'Aucun serveur. Commence par ajouter un bot dans l\'onglet Bots.'),
   ]);
 }
 
-function botsView() {
+const icon = (g) => g.icon
+  ? h('img', { class: 'ico', src: `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64`, alt: '' })
+  : h('span', { class: 'ico', 'aria-hidden': 'true' }, (g.name || '?')[0].toUpperCase());
+
+// ---------- migration (ajout de membres) ----------
+function migrationModal(d) {
+  const m = modal('Migration', `Ajoute des membres sauvegardés dans ${d.name}.`);
+  const canRestore = d.sources.length || d.botTotal;
+  if (!canRestore) {
+    m.body.append(h('p', { class: 'empty' }, 'Aucun membre sauvegardé disponible. Fais d\'abord vérifier des membres, ou configure le bot sur l\'ancien serveur.'));
+    return;
+  }
+  const srcSel = h('select', { 'aria-label': 'Source' },
+    d.botTotal > 0 && h('option', { value: 'all' }, `Tous les membres de ${d.botName} (${d.botTotal})`),
+    d.sources.map((s) => h('option', { value: s.id }, `${s.name} (${s.count} membres)`)));
+  const bar = h('i'); const stat = h('p', { class: 'hint' });
+  const sumSource = h('b'), sumCount = h('b'), sumTime = h('b');
+  const refresh = () => {
+    const n = srcSel.value === 'all' ? d.botTotal : (d.sources.find((s) => s.id === srcSel.value)?.count || 0);
+    sumSource.textContent = srcSel.selectedOptions[0]?.textContent || '—';
+    sumCount.textContent = String(n);
+    sumTime.textContent = n < 60 ? `~${n} s` : `~${Math.ceil(n / 60)} min`;
+  };
+  srcSel.addEventListener('change', refresh); refresh();
+  const restoreBtn = h('button', { class: 'btn green block', disabled: d.restoring, onclick: () => startRestore(d, srcSel.value, restoreBtn, bar, stat) }, 'Ajouter les membres');
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const whenIn = h('input', { type: 'datetime-local', 'aria-label': 'Date et heure' });
+  const schedBtn = h('button', { class: 'btn ghost', onclick: () => scheduleRestore(d, srcSel.value, whenIn, m) }, 'Planifier');
+  m.body.append(
+    h('div', { class: 'label', style: 'margin-top:0' }, 'Source des membres'), srcSel,
+    h('div', { class: 'summary' },
+      h('div', { class: 'cap' }, 'Résumé'),
+      h('div', { class: 'sumrow' }, h('span', {}, 'Serveur cible'), h('b', {}, d.name)),
+      h('div', { class: 'sumrow' }, h('span', {}, 'Source'), sumSource),
+      h('div', { class: 'sumrow' }, h('span', {}, 'Membres à ajouter'), sumCount),
+      h('div', { class: 'sumrow' }, h('span', {}, 'Temps estimé'), sumTime)),
+    restoreBtn, h('div', { class: 'bar', 'aria-hidden': 'true' }, bar), stat,
+    h('div', { class: 'label' }, 'Ou planifie à une heure précise'),
+    h('div', { class: 'row' }, whenIn, schedBtn),
+    h('p', { class: 'hint', style: 'margin:.5rem 0 0' }, `Heure de ton navigateur${tz ? ' (' + tz + ')' : ''}. Entre 1 minute et 30 jours à l'avance.`));
+}
+
+// ---------- page Migrations ----------
+let migTab = 'active';
+const SCHED = { pending: 'En attente', running: 'Lancement…', started: 'Lancée', failed: 'Échec', missed: 'Manquée', cancelled: 'Annulée' };
+async function migrationsView() {
+  shell(h('p', { class: 'loading' }, 'Chargement…'));
+  const rows = await loadOverview();
+  const active = rows.flatMap(({ g, d }) => [
+    ...(d.restoring ? [{ kind: 'run', g, d }] : []),
+    ...(d.schedules || []).filter((x) => x.status === 'pending').map((x) => ({ kind: 'sched', g, d, x })),
+  ]);
+  const history = rows.flatMap(({ g, d }) => d.audit.filter((a) => a.action === 'restore.end').map((a) => ({ g, a })))
+    .sort((x, y) => y.a.ts - x.a.ts);
+  const failedSched = rows.flatMap(({ g, d }) => (d.schedules || []).filter((x) => ['failed', 'missed'].includes(x.status)).map((x) => ({ g, x })));
+
+  const tabs = h('div', { class: 'seg', role: 'tablist' }, [['active', `Actives${active.length ? ' (' + active.length + ')' : ''}`], ['history', 'Historique']].map(([k, label]) =>
+    h('button', { class: 'segbtn', role: 'tab', 'aria-selected': String(migTab === k), onclick: () => { migTab = k; migrationsView(); } }, label)));
+
+  const activeList = active.length ? active.map((r) => r.kind === 'run'
+    ? h('div', { class: 'card migcard' }, h('div', { class: 'migtop' }, icon(r.g), h('div', { class: 'grow' }, h('b', {}, r.g.name), h('div', { class: 'hint' }, 'Migration en cours')), h('span', { class: 'badge ok' }, 'En cours')))
+    : h('div', { class: 'card migcard' }, h('div', { class: 'migtop' }, icon(r.g),
+      h('div', { class: 'grow' }, h('b', {}, r.g.name), h('div', { class: 'hint' }, `${plural(r.x.expected, 'membre')} depuis ${r.x.source_name} · ${stamp(r.x.run_at)}`)),
+      h('span', { class: 'badge' }, SCHED.pending), h('button', { class: 'btn danger', onclick: () => cancelSchedule(r.d, r.x) }, 'Annuler'))))
+    : h('p', { class: 'empty' }, 'Aucune migration active ou planifiée. Lance-en une depuis la page Serveurs.');
+
+  const histList = (history.length || failedSched.length) ? [
+    ...history.map(({ g, a }) => {
+      const t = a.detail.total || a.detail.added || 0;
+      const ok = a.detail.status === 'done';
+      const pct = (n) => (t ? Math.min(100, (n / t) * 100) : 0);
+      return h('div', { class: 'card migcard' },
+        h('div', { class: 'migtop' }, icon(g), h('div', { class: 'grow' }, h('b', {}, g.name),
+          h('div', { class: 'hint' }, `${a.detail.added ?? 0} / ${t} membres ajoutés (${Math.round(pct(a.detail.added ?? 0))} %) · ${a.detail.already ?? 0} déjà présents · ${a.detail.failed ?? 0} échecs`)),
+          h('span', { class: 'badge' + (ok ? ' ok' : ' bad') }, ok ? 'Terminée' : 'Erreur')),
+        h('div', { class: 'bar2', 'aria-hidden': 'true' }, h('i', { class: 'g', style: `width:${pct(a.detail.added ?? 0)}%` }), h('i', { class: 'r', style: `width:${pct(a.detail.failed ?? 0)}%` })),
+        h('div', { class: 'hint' }, stamp(a.ts)));
+    }),
+    ...failedSched.map(({ g, x }) => h('div', { class: 'card migcard' }, h('div', { class: 'migtop' }, icon(g),
+      h('div', { class: 'grow' }, h('b', {}, g.name), h('div', { class: 'hint' }, `Planifiée pour ${stamp(x.run_at)}${x.error ? ' — ' + x.error : ''}`)),
+      h('span', { class: 'badge bad' }, SCHED[x.status])))),
+  ] : h('p', { class: 'empty' }, 'Aucune migration terminée pour l\'instant.');
+
+  shell([pageHead('Migrations', 'Ajoute des membres sauvegardés dans tes serveurs.'), tabs, migTab === 'active' ? activeList : histList]);
+}
+
+// ---------- bots ----------
+function addBotModal() {
+  const m = modal('Ajouter un bot', 'Chaque bot est le tien : il apparaît sur ton serveur avec ton nom et ton image.');
   const f = {};
   const field = (key, label, type = 'text') => h('label', { class: 'field' }, h('span', {}, label),
     (f[key] = h('input', { type, autocomplete: 'off', spellcheck: 'false' })));
@@ -155,38 +303,102 @@ function botsView() {
     addBtn.disabled = true;
     try {
       await api('/bots', { method: 'POST', body: { token: f.token.value, clientId: f.clientId.value, clientSecret: f.clientSecret.value } });
-      toast('Bot ajouté'); me = await api('/me'); botsView();
+      toast('Bot ajouté'); me = await api('/me'); m.close(); botsView();
     } catch (e) { addBtn.disabled = false; fail(e); }
   } }, 'Ajouter le bot');
+  m.body.append(
+    h('ol', { class: 'steps' },
+      h('li', {}, 'Crée une application sur ', h('a', { href: 'https://discord.com/developers/applications', target: '_blank', rel: 'noopener' }, 'discord.com/developers'), '.'),
+      h('li', {}, 'Onglet Bot : active « Server Members Intent » et copie le token.'),
+      h('li', {}, 'Onglet OAuth2 : copie le Client ID et le Client Secret, puis ajoute ce lien dans Redirects :')),
+    h('div', { class: 'row' },
+      h('input', { type: 'text', readonly: true, value: me.redirectUri, 'aria-label': 'Lien de redirection' }),
+      h('button', { class: 'btn ghost', onclick: () => copy(me.redirectUri) }, 'Copier')),
+    h('div', { class: 'form' }, field('clientId', 'Client ID'), field('clientSecret', 'Client Secret', 'password'),
+      field('token', 'Token du bot', 'password'), h('div', {}, addBtn)),
+    h('p', { class: 'hint' }, 'Le token et le secret sont chiffrés avant d\'être enregistrés.'));
+}
 
+function manageBotModal(b) {
+  const m = modal(b.name, 'Gestion du bot');
+  m.body.append(
+    h('div', { class: 'sumrow' }, h('span', {}, 'ID'), h('b', { class: 'mono' }, b.id)),
+    h('div', { class: 'sumrow' }, h('span', {}, 'État'), h('span', { class: 'badge' + (b.online ? ' ok' : '') }, b.online ? 'En ligne' : 'Hors ligne')),
+    h('div', { class: 'label' }, 'Lien de redirection à ajouter dans l\'application Discord'),
+    h('div', { class: 'row' }, h('input', { type: 'text', readonly: true, value: me.redirectUri }), h('button', { class: 'btn ghost', onclick: () => copy(me.redirectUri) }, 'Copier')),
+    h('div', { class: 'row', style: 'margin-top:1.25rem' },
+      h('a', { class: 'btn ghost', href: b.inviteUrl, target: '_blank', rel: 'noopener' }, 'Inviter le bot'),
+      h('button', { class: 'btn danger', onclick: async () => {
+        if (!confirm(`Supprimer ${b.name} ? Les membres sauvegardés avec ce bot seront aussi supprimés.`)) return;
+        try { await api('/bots/' + b.id, { method: 'DELETE' }); toast('Bot supprimé'); me = await api('/me'); m.close(); botsView(); }
+        catch (e) { fail(e); } } }, 'Supprimer le bot')));
+}
+
+function botsView() {
   shell([
-    h('div', { class: 'head' }, h('h1', {}, 'Mes bots'),
-      h('p', { class: 'sub' }, 'Chaque bot est le tien : il apparaît sur ton serveur avec ton nom et ton image.')),
-    card('Bots enregistrés',
-      me.bots.length ? h('div', { class: 'tablewrap' }, h('table', {},
-        h('thead', {}, h('tr', {}, h('th', {}, 'Bot'), h('th', {}, 'État'), h('th', {}, ''))),
-        h('tbody', {}, me.bots.map((b) => h('tr', {},
-          h('td', {}, b.name),
-          h('td', {}, h('span', { class: 'badge' + (b.online ? ' ok' : '') }, b.online ? 'En ligne' : 'Hors ligne')),
-          h('td', { class: 'act' },
-            h('a', { class: 'btn ghost sm', href: b.inviteUrl, target: '_blank', rel: 'noopener' }, 'Inviter'), ' ',
-            h('button', { class: 'btn danger', onclick: async () => {
-              if (!confirm(`Supprimer ${b.name} ? Les membres sauvegardés avec ce bot seront aussi supprimés.`)) return;
-              try { await api('/bots/' + b.id, { method: 'DELETE' }); toast('Bot supprimé'); me = await api('/me'); botsView(); }
-              catch (e) { fail(e); } } }, 'Supprimer')))))))
-        : h('p', { class: 'empty' }, 'Aucun bot pour l\'instant. Ajoute le tien ci-dessous.')),
-    card('Ajouter un bot',
-      h('ol', { class: 'steps' },
-        h('li', {}, 'Crée une application sur ', h('a', { href: 'https://discord.com/developers/applications', target: '_blank', rel: 'noopener' }, 'discord.com/developers'), '.'),
-        h('li', {}, 'Onglet Bot : active « Server Members Intent » et copie le token.'),
-        h('li', {}, 'Onglet OAuth2 : copie le Client ID et le Client Secret, puis ajoute ce lien dans Redirects :')),
-      h('div', { class: 'row' },
-        h('input', { type: 'text', readonly: true, value: me.redirectUri, 'aria-label': 'Lien de redirection' }),
-        h('button', { class: 'btn ghost', onclick: () => copy(me.redirectUri) }, 'Copier')),
-      h('div', { class: 'form' }, field('clientId', 'Client ID'), field('clientSecret', 'Client Secret', 'password'),
-        field('token', 'Token du bot', 'password'), h('div', {}, addBtn)),
-      h('p', { class: 'hint' }, 'Le token et le secret sont chiffrés avant d\'être enregistrés. Tu peux les régénérer ou supprimer le bot à tout moment.')),
+    pageHead('Bots', 'Gère tes bots Discord.', h('button', { class: 'btn ghost', onclick: addBotModal }, svg('plus'), 'Ajouter un bot')),
+    me.bots.length
+      ? h('div', { class: 'srvgrid' }, me.bots.map((b) => h('div', { class: 'card srvcard' },
+        h('div', { class: 'srvtop' }, h('span', { class: 'ico', 'aria-hidden': 'true' }, (b.name || '?')[0].toUpperCase()),
+          h('div', { class: 'grow' }, h('b', {}, b.name), h('div', { class: 'hint mono' }, b.id)),
+          h('span', { class: 'dotlive' + (b.online ? ' on' : ''), title: b.online ? 'En ligne' : 'Hors ligne' })),
+        h('div', { class: 'row nowrap' },
+          h('button', { class: 'btn ghost grow', onclick: () => manageBotModal(b) }, 'Gérer'),
+          h('a', { class: 'btn ghost grow', href: b.inviteUrl, target: '_blank', rel: 'noopener' }, 'Inviter')))))
+      : h('p', { class: 'empty' }, 'Aucun bot pour l\'instant. Utilise « Ajouter un bot » pour créer le tien.'),
   ]);
+}
+
+// ---------- membres vérifiés ----------
+let memFilter = 'all', memQuery = '';
+async function membersView() {
+  shell(h('p', { class: 'loading' }, 'Chargement…'));
+  const rows = await loadOverview();
+  const sel = h('select', { 'aria-label': 'Serveur', onchange: () => { memFilter = sel.value; draw(); } },
+    h('option', { value: 'all' }, 'Tous les serveurs'), rows.map((r) => h('option', { value: r.g.id, selected: r.g.id === memFilter }, r.g.name)));
+  const q = h('input', { type: 'text', placeholder: 'Rechercher un pseudo ou un ID…', value: memQuery, 'aria-label': 'Recherche', oninput: () => { memQuery = q.value; draw(); } });
+  const list = h('div');
+  const draw = () => {
+    const all = rows.filter((r) => memFilter === 'all' || r.g.id === memFilter)
+      .flatMap((r) => r.d.members.map((m) => ({ m, g: r.g, d: r.d })));
+    const term = memQuery.trim().toLowerCase();
+    const shown = all.filter(({ m }) => !term || (m.username || '').toLowerCase().includes(term) || m.id.includes(term));
+    const hasIp = shown.some((x) => x.m.ip), hasMail = shown.some((x) => x.m.email);
+    list.replaceChildren(shown.length ? card(null,
+      h('div', { class: 'tablewrap' }, h('table', {},
+        h('thead', {}, h('tr', {}, h('th', {}, 'Pseudo'), h('th', {}, 'ID'), h('th', {}, 'Serveur'), hasIp && h('th', {}, 'IP'), hasMail && h('th', {}, 'E-mail'), h('th', {}, 'Jeton'), h('th', {}, ''))),
+        h('tbody', {}, shown.map(({ m, g, d }) => h('tr', {},
+          h('td', {}, m.username || '—'), h('td', { class: 'mono' }, m.id), h('td', {}, g.name),
+          hasIp && h('td', { class: 'mono wrap' }, m.ip || '—'), hasMail && h('td', { class: 'wrap' }, m.email || '—'),
+          h('td', {}, when(m.expires_at)),
+          h('td', { class: 'act' }, h('button', { class: 'btn danger', onclick: () => removeMember(d, m) }, 'Retirer'))))))),
+      rows.some((r) => r.d.saved > r.d.members.length) && h('p', { class: 'hint', style: 'margin:.75rem 0 0' }, 'Les 100 premiers membres de chaque serveur sont affichés.'))
+      : h('p', { class: 'empty' }, all.length ? 'Aucun résultat.' : 'Personne ne s\'est encore vérifié. Partage le lien de vérification de ton serveur.'));
+  };
+  draw();
+  shell([pageHead('Membres vérifiés', 'Les membres sauvegardés sur tes serveurs.'), h('div', { class: 'row filters' }, sel, q), list]);
+}
+
+// ---------- compte ----------
+function accountView() {
+  shell([
+    pageHead('Compte', 'Ton profil et ta session.'),
+    card('Profil',
+      h('div', { class: 'sumrow' }, h('span', {}, 'Pseudo'), h('b', {}, me.user.username)),
+      h('div', { class: 'sumrow' }, h('span', {}, 'ID Discord'), h('b', { class: 'mono' }, me.user.id)),
+      h('div', { class: 'sumrow' }, h('span', {}, 'Bots'), h('b', {}, String(me.bots.length))),
+      h('div', { class: 'row', style: 'margin-top:1.1rem' }, h('button', { class: 'btn ghost', onclick: logout }, 'Se déconnecter'))),
+  ]);
+}
+
+// ---------- réglages d'un serveur ----------
+const protBody = (p, patch) => ({ min_age_days: p.min_age_days, anti_alt: p.anti_alt, anti_vpn: p.anti_vpn, log_ip: p.log_ip, log_email: p.log_email, ...patch });
+async function saveProt(d, patch, msg, box) {
+  try {
+    await api(`/guilds/${d.id}/protection`, { method: 'POST', body: protBody(d.protection, patch) });
+    Object.assign(d.protection, patch);
+    toast(msg || 'Enregistré');
+  } catch (e) { if (box) box.checked = !box.checked; fail(e); }
 }
 
 function guildView(g, d) {
@@ -195,167 +407,105 @@ function guildView(g, d) {
     d.roles.map((r) => h('option', { value: r.id, selected: r.id === d.roleId }, r.name)));
   const chanSel = h('select', { id: 'chan', 'aria-label': 'Salon du message' },
     d.channels.map((c) => h('option', { value: c.id }, '#' + c.name)));
-  const srcSel = h('select', { id: 'src', 'aria-label': 'Ancien serveur' },
-    d.botTotal > 0 && h('option', { value: 'all' }, `Tous les membres de ${d.botName} (${d.botTotal})`),
-    d.sources.map((s) => h('option', { value: s.id }, `${s.name} (${s.count} membres)`)));
   const alertSel = h('select', { id: 'alert', 'aria-label': 'Salon des alertes' },
     h('option', { value: '' }, 'Alertes désactivées'),
     d.channels.map((c) => h('option', { value: c.id, selected: c.id === d.alertChannelId }, '#' + c.name)));
-  const bar = h('i'); const stat = h('p', { class: 'hint' });
-  const restoreBtn = h('button', { class: 'btn', disabled: d.restoring || !(d.sources.length || d.botTotal),
-    onclick: () => startRestore(d, srcSel.value, restoreBtn, bar, stat) }, 'Ajouter les membres');
-  const canRestore = d.sources.length || d.botTotal;
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-  const whenIn = h('input', { type: 'datetime-local', id: 'when', 'aria-label': 'Date et heure de la restauration' });
-  const schedBtn = h('button', { class: 'btn', disabled: !canRestore, onclick: () => scheduleRestore(d, srcSel.value, whenIn) }, 'Planifier');
-  const STATUS = { pending: 'En attente', running: 'Lancement…', started: 'Lancée', failed: 'Échec', missed: 'Manquée', cancelled: 'Annulée' };
 
   const needRole = (what) => card(null, h('p', { class: 'empty' },
     `Choisis d'abord le rôle de vérification (onglet Général) pour configurer ${what}.`));
-  const pending = (d.schedules || []).filter((x) => x.status === 'pending').length;
-  const TABS = [
-    ['general', 'Général'],
-    ['page', 'Visuel'],
-    ['protection', 'Sécurité'],
-    ['restore', 'Restauration', pending || null],
-    ['members', 'Membres', d.saved || null],
-    ['activity', 'Journal'],
-  ];
+  const TABS = [['general', 'Général'], ['page', 'Visuel'], ['security', 'Sécurité'], ['firewall', 'Firewall'], ['extras', 'Extras']];
   if (guildTabFor !== d.id) { guildTab = 'general'; guildTabFor = d.id; }
   const tabBar = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Sections du serveur' },
-    TABS.map(([key, label, n]) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(key === guildTab),
-      onclick: () => { guildTab = key; guildView(g, d); } }, label, n != null && h('span', { class: 'count' }, String(n)))));
+    TABS.map(([key, label]) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(key === guildTab),
+      onclick: () => { guildTab = key; guildView(g, d); } }, label)));
+
+  const p = d.protection;
+  const age = h('input', { type: 'number', min: '0', max: String(p.maxAge), step: '1', value: String(p.min_age_days), 'aria-label': 'Âge minimum du compte en jours' });
+  const bl = h('input', { type: 'text', placeholder: 'ID Discord à blacklister', inputmode: 'numeric', 'aria-label': 'ID Discord à blacklister' });
 
   const panes = {
     general: [
-    h('div', { class: 'stats' },
-      h('div', { class: 'stat' }, h('b', {}, String(d.saved)), h('span', {}, 'Membres sauvegardés')),
-      h('div', { class: 'stat' }, h('b', {}, String(d.sources.length)), h('span', {}, 'Autres serveurs')),
-      h('div', { class: 'stat' }, h('b', {}, String(d.botTotal || 0)), h('span', {}, `Membres de ${d.botName || 'ton bot'}`))),
-
-    card('Vérification',
-      h('p', { class: 'lead hint' }, 'Les membres qui cliquent sur le bouton de vérification reçoivent ce rôle et sont sauvegardés.'),
-      h('div', { class: 'row' }, roleSel,
-        h('button', { class: 'btn', onclick: async () => {
-          try { await api(`/guilds/${d.id}/settings`, { method: 'POST', body: { roleId: roleSel.value } });
-            toast('Rôle enregistré'); select(d.id); } catch (e) { fail(e); } } }, 'Enregistrer le rôle')),
-      d.verifyUrl && [
-        h('div', { class: 'label' }, 'Lien de vérification'),
-        h('div', { class: 'row' }, h('input', { type: 'text', readonly: true, value: d.verifyUrl, 'aria-label': 'Lien de vérification' }),
-          h('button', { class: 'btn ghost', onclick: () => copy(d.verifyUrl) }, 'Copier')),
-        h('div', { class: 'label' }, 'Ou publie le message avec le bouton dans un salon'),
-        h('div', { class: 'row' }, chanSel,
+      h('div', { class: 'stats' },
+        h('div', { class: 'stat' }, h('b', {}, String(d.saved)), h('span', {}, 'Membres vérifiés')),
+        h('div', { class: 'stat' }, h('b', {}, String(d.sources.length)), h('span', {}, 'Autres serveurs')),
+        h('div', { class: 'stat' }, h('b', {}, String(d.botTotal || 0)), h('span', {}, `Membres de ${d.botName || 'ton bot'}`))),
+      card('Profil du serveur',
+        h('div', { class: 'sumrow' }, h('span', {}, 'Nom'), h('b', {}, d.name)),
+        h('div', { class: 'sumrow' }, h('span', {}, 'Bot'), h('b', {}, d.botName)),
+        h('div', { class: 'row', style: 'margin-top:1rem' }, h('button', { class: 'btn green', onclick: () => migrationModal(d) }, 'Ajouter les membres'))),
+      card('Intégration Discord',
+        h('p', { class: 'lead hint' }, 'Les membres qui cliquent sur le bouton de vérification reçoivent ce rôle et sont sauvegardés.'),
+        h('div', { class: 'label', style: 'margin-top:0' }, 'Rôle des membres vérifiés'),
+        h('div', { class: 'row' }, roleSel,
+          h('button', { class: 'btn', onclick: async () => {
+            try { await api(`/guilds/${d.id}/settings`, { method: 'POST', body: { roleId: roleSel.value } });
+              toast('Rôle enregistré'); select(d.id); } catch (e) { fail(e); } } }, 'Enregistrer le rôle')),
+        d.verifyUrl && [
+          h('div', { class: 'label' }, 'Lien de vérification'),
+          h('div', { class: 'row' }, h('input', { type: 'text', readonly: true, value: d.verifyUrl, 'aria-label': 'Lien de vérification' }),
+            h('button', { class: 'btn ghost', onclick: () => copy(d.verifyUrl) }, 'Copier')),
+          h('div', { class: 'label' }, 'Ou publie le message avec le bouton dans un salon'),
+          h('div', { class: 'row' }, chanSel,
+            h('button', { class: 'btn ghost', onclick: async () => {
+              try { await api(`/guilds/${d.id}/announce`, { method: 'POST', body: { channelId: chanSel.value } });
+                toast('Message publié'); } catch (e) { fail(e); } } }, 'Publier le message')),
+        ]),
+    ],
+    page: [d.verifyUrl ? pageCard(d) : needRole('la page')],
+    security: d.verifyUrl ? [
+      card('Données collectées',
+        h('p', { class: 'lead hint' }, 'Ce que tu enregistres quand un membre se vérifie. S\'applique aux nouvelles vérifications. Les membres en sont informés sur la page de vérification, et tout est chiffré en base.'),
+        toggle('Journal des adresses IP', 'Enregistre l\'adresse IP du membre à la vérification.', p.log_ip, (v, box) => saveProt(d, { log_ip: v }, 'Enregistré', box)),
+        toggle('Accès à l\'e-mail', 'Discord demande alors l\'accès à l\'e-mail du membre.', p.log_email, (v, box) => saveProt(d, { log_email: v }, 'Enregistré', box)),
+        h('p', { class: 'hint', style: 'margin:.8rem 0 0' }, 'Tu es responsable de ces données (RGPD) : n\'active que ce dont tu as besoin.')),
+    ] : [needRole('la sécurité')],
+    firewall: d.verifyUrl ? [
+      card('Protections',
+        h('p', { class: 'lead hint' }, 'Contrôles appliqués avant qu\'un membre soit vérifié. Un membre refusé n\'est pas sauvegardé et ne reçoit pas le rôle ; chaque refus est inscrit au journal.'),
+        toggle('Anti-alts', 'Refuse un second compte vérifié depuis la même connexion. Seule une empreinte chiffrée de l\'IP est conservée.', p.anti_alt, (v, box) => saveProt(d, { anti_alt: v }, 'Enregistré', box)),
+        toggle('Anti-VPN', 'Refuse les VPN, proxys et Tor. Un service externe (proxycheck.io) reçoit l\'IP du membre ; s\'il est indisponible, la vérification est acceptée.', p.anti_vpn, (v, box) => saveProt(d, { anti_vpn: v }, 'Enregistré', box)),
+        h('div', { class: 'label' }, 'Âge minimum du compte Discord (jours, 0 = désactivé)'),
+        h('div', { class: 'row' }, age, h('button', { class: 'btn', onclick: () => saveProt(d, { min_age_days: Number(age.value || 0) }, 'Âge minimum enregistré') }, 'Enregistrer'))),
+      card(`Liste noire (${p.blacklist.length}/${p.maxBlacklist})`,
+        h('p', { class: 'lead hint' }, 'Ces membres ne peuvent pas se vérifier.'),
+        h('div', { class: 'row' }, bl,
           h('button', { class: 'btn ghost', onclick: async () => {
-            try { await api(`/guilds/${d.id}/announce`, { method: 'POST', body: { channelId: chanSel.value } });
-              toast('Message publié'); } catch (e) { fail(e); } } }, 'Publier le message')),
-      ]),
-    ],
-    page: [
-      d.verifyUrl ? pageCard(d) : needRole('la page'),
-    ],
-    protection: [
-      d.verifyUrl ? protectionCard(d) : needRole('les protections'),
-    card('Alertes de sécurité',
-      h('p', { class: 'lead hint' }, `Le bot poste un message dans ce salon quand une restauration de ${d.massRestore} membres ou plus est lancée, quand des membres sont retirés en rafale, ou quand un bot est supprimé avec ses données. Choisis un salon réservé aux admins.`),
-      h('div', { class: 'row' }, alertSel,
-        h('button', { class: 'btn', onclick: async () => {
-          try { await api(`/guilds/${d.id}/alerts`, { method: 'POST', body: { channelId: alertSel.value } });
-            toast(alertSel.value ? 'Alertes activées (message de test envoyé)' : 'Alertes désactivées'); select(d.id); } catch (e) { fail(e); } } }, 'Enregistrer'))),
-    ],
-    restore: [
-    card('Restauration et ajout de membres',
-      h('p', { class: 'lead hint' }, 'Ajoute dans ce serveur les membres sauvegardés : ceux d\'un ancien serveur (même supprimé) ou tous ceux de ton bot. Ils restent sauvegardés tant qu\'ils ne retirent pas l\'application.'),
-      canRestore
-        ? [h('div', { class: 'row' }, srcSel, restoreBtn), h('div', { class: 'bar', 'aria-hidden': 'true' }, bar), stat,
-          h('div', { class: 'label' }, 'Ou planifie-la à une heure précise'),
-          h('div', { class: 'row' }, whenIn, schedBtn),
-          h('p', { class: 'hint', style: 'margin:.5rem 0 0' }, `Heure de ton navigateur${tz ? ' (' + tz + ')' : ''}. Entre 1 minute et 30 jours à l'avance. Les droits (admin, bot présent, source) sont revérifiés au moment du lancement, et tu peux annuler avant.`)]
-        : h('p', { class: 'empty' }, 'Aucun autre serveur avec des membres sauvegardés. Configure le bot sur l\'ancien serveur pour qu\'il apparaisse ici.')),
-    d.schedules && d.schedules.length > 0 && card('Restaurations planifiées',
-      h('div', { class: 'tablewrap' }, h('table', {},
-        h('thead', {}, h('tr', {}, h('th', {}, 'Heure'), h('th', {}, 'Source'), h('th', {}, 'Statut'), h('th', {}, ''))),
-        h('tbody', {}, d.schedules.map((x) => h('tr', {},
-          h('td', {}, stamp(x.run_at)),
-          h('td', { class: 'wrap' }, `${x.source_name} (${x.expected})`),
-          h('td', { class: 'wrap' + (x.status === 'failed' || x.status === 'missed' ? ' warn' : '') }, STATUS[x.status] || x.status, x.error ? ` — ${x.error}` : ''),
-          h('td', { class: 'act' }, x.status === 'pending' && h('button', { class: 'btn danger', onclick: () => cancelSchedule(d, x) }, 'Annuler')))))))),
-    ],
-    members: [
-    card('Membres',
-      d.members.length
-        ? [
-          h('div', { class: 'tablewrap' }, h('table', {},
-            h('thead', {}, h('tr', {}, h('th', {}, 'Pseudo'), h('th', {}, 'ID'), d.members.some((m) => m.ip) && h('th', {}, 'IP'), d.members.some((m) => m.email) && h('th', {}, 'E-mail'), h('th', {}, 'Jeton'), h('th', {}, ''))),
-            h('tbody', {}, d.members.map((m) => h('tr', {},
-              h('td', {}, m.username || '—'), h('td', { class: 'mono' }, m.id),
-              d.members.some((x) => x.ip) && h('td', { class: 'mono wrap' }, m.ip || '—'),
-              d.members.some((x) => x.email) && h('td', { class: 'wrap' }, m.email || '—'),
-              h('td', {}, when(m.expires_at)),
-              h('td', { class: 'act' }, h('button', { class: 'btn danger', onclick: () => removeMember(d, m) }, 'Retirer'))))))),
-          d.saved > d.members.length && h('p', { class: 'hint', style: 'margin:.75rem 0 0' }, `Les ${d.members.length} premiers sur ${d.saved} sont affichés.`),
-        ]
-        : h('p', { class: 'empty' }, 'Personne ne s\'est encore vérifié. Partage le lien de vérification.')),
-    ],
-    activity: [
-    card('Journal d\'activité',
-      d.audit.length
-        ? h('div', { class: 'tablewrap' }, h('table', {},
-          h('thead', {}, h('tr', {}, h('th', {}, 'Date'), h('th', {}, 'Qui'), h('th', {}, 'Action'))),
-          h('tbody', {}, d.audit.map((a) => h('tr', {},
-            h('td', {}, stamp(a.ts)),
-            h('td', {}, a.actor, a.via === 'api' ? ' (API)' : a.via === 'schedule' ? ' (planifié)' : ''),
-            h('td', { class: 'wrap' + (DANGER.has(a.action) ? ' warn' : '') }, (ACTIONS[a.action] || (() => a.action))(a.detail)))))))
-        : h('p', { class: 'empty' }, 'Aucune activité enregistrée pour l\'instant.')),
+            try { await api(`/guilds/${d.id}/blacklist`, { method: 'POST', body: { userId: bl.value } });
+              toast('Ajouté à la liste noire'); select(d.id); } catch (e) { fail(e); } } }, 'Ajouter')),
+        p.blacklist.length
+          ? h('div', { class: 'tablewrap' }, h('table', {},
+            h('thead', {}, h('tr', {}, h('th', {}, 'ID'), h('th', {}, ''))),
+            h('tbody', {}, p.blacklist.map((id) => h('tr', {},
+              h('td', { class: 'mono' }, id),
+              h('td', { class: 'act' }, h('button', { class: 'btn danger', onclick: async () => {
+                try { await api(`/guilds/${d.id}/blacklist/${id}`, { method: 'DELETE' }); toast('Retiré de la liste noire'); select(d.id); } catch (e) { fail(e); } } }, 'Retirer')))))))
+          : h('p', { class: 'empty' }, 'Liste noire vide.')),
+    ] : [needRole('le firewall')],
+    extras: [
+      card('Alertes de sécurité',
+        h('p', { class: 'lead hint' }, `Le bot poste un message dans ce salon quand une restauration de ${d.massRestore} membres ou plus est lancée, quand des membres sont retirés en rafale, ou quand un bot est supprimé avec ses données. Choisis un salon réservé aux admins.`),
+        h('div', { class: 'row' }, alertSel,
+          h('button', { class: 'btn', onclick: async () => {
+            try { await api(`/guilds/${d.id}/alerts`, { method: 'POST', body: { channelId: alertSel.value } });
+              toast(alertSel.value ? 'Alertes activées (message de test envoyé)' : 'Alertes désactivées'); select(d.id); } catch (e) { fail(e); } } }, 'Enregistrer'))),
+      card('Journal d\'activité',
+        d.audit.length
+          ? h('div', { class: 'tablewrap' }, h('table', {},
+            h('thead', {}, h('tr', {}, h('th', {}, 'Date'), h('th', {}, 'Qui'), h('th', {}, 'Action'))),
+            h('tbody', {}, d.audit.map((a) => h('tr', {},
+              h('td', {}, stamp(a.ts)),
+              h('td', {}, a.actor, a.via === 'api' ? ' (API)' : a.via === 'schedule' ? ' (planifié)' : ''),
+              h('td', { class: 'wrap' + (DANGER.has(a.action) ? ' warn' : '') }, (ACTIONS[a.action] || (() => a.action))(a.detail)))))))
+          : h('p', { class: 'empty' }, 'Aucune activité enregistrée pour l\'instant.')),
     ],
   };
 
   shell([
-    h('div', { class: 'head' }, h('button', { class: 'btn ghost sm back', onclick: () => select('servers') }, '← Serveurs'), h('h1', {}, d.name),
-      h('p', { class: 'sub' }, `${plural(d.saved, 'membre')} ${d.saved > 1 ? 'sauvegardés' : 'sauvegardé'}`)),
-
+    h('div', { class: 'head' }, h('button', { class: 'btn ghost sm back', onclick: () => select('servers') }, '← Serveurs'),
+      h('h1', {}, d.name), h('p', { class: 'sub' }, 'Modifie les réglages et la configuration du serveur.')),
     tabBar,
     ...panes[guildTab],
   ]);
-}
-
-// ---------- protections de la vérification ----------
-function protectionCard(d) {
-  const p = d.protection;
-  const age = h('input', { type: 'number', id: 'minage', min: '0', max: String(p.maxAge), step: '1', value: String(p.min_age_days), 'aria-label': 'Âge minimum du compte en jours' });
-  const alt = h('input', { type: 'checkbox', id: 'antialt', checked: p.anti_alt ? '' : null });
-  const vpn = h('input', { type: 'checkbox', id: 'antivpn', checked: p.anti_vpn ? '' : null });
-  const logIp = h('input', { type: 'checkbox', id: 'logip' });
-  const logEmail = h('input', { type: 'checkbox', id: 'logemail' });
-  alt.checked = p.anti_alt; vpn.checked = p.anti_vpn; logIp.checked = p.log_ip; logEmail.checked = p.log_email;
-  const bl = h('input', { type: 'text', id: 'bluid', placeholder: 'ID Discord à blacklister', inputmode: 'numeric', 'aria-label': 'ID Discord à blacklister' });
-  const check = (box, text, hint) => h('label', { class: 'check' }, box, h('span', {}, h('b', {}, text), h('small', {}, hint)));
-  return card('Protections',
-    h('p', { class: 'lead hint' }, 'Contrôles appliqués avant qu\'un membre soit vérifié. Un membre refusé n\'est pas sauvegardé et ne reçoit pas le rôle ; chaque refus est inscrit au journal.'),
-    h('div', { class: 'label' }, 'Âge minimum du compte Discord (jours, 0 = désactivé)'),
-    h('div', { class: 'row' }, age),
-    check(alt, 'Anti-alts', 'Refuse un second compte vérifié depuis la même connexion (IP). Seule une empreinte chiffrée de l\'IP est conservée.'),
-    check(vpn, 'Anti-VPN', 'Refuse les VPN, proxys et Tor. Un service externe (proxycheck.io) reçoit l\'IP du membre ; s\'il est indisponible, la vérification est acceptée.'),
-    h('div', { class: 'label' }, 'Journal des membres (choisis ce que tu veux enregistrer)'),
-    check(logIp, 'Enregistrer l\'adresse IP', 'Visible dans la liste des membres. Chiffrée en base. Les membres en sont informés sur la page de vérification.'),
-    check(logEmail, 'Enregistrer l\'e-mail', 'Discord demande alors l\'accès à l\'e-mail du membre. Chiffré en base, et le membre en est informé.'),
-    h('p', { class: 'hint' }, 'S\'applique aux nouvelles vérifications uniquement. Tu es responsable de ces données (RGPD) : n\'active que ce dont tu as besoin.'),
-    h('div', { class: 'row', style: 'margin-top:.9rem' },
-      h('button', { class: 'btn', onclick: async () => {
-        try { await api(`/guilds/${d.id}/protection`, { method: 'POST', body: { min_age_days: Number(age.value || 0), anti_alt: alt.checked, anti_vpn: vpn.checked, log_ip: logIp.checked, log_email: logEmail.checked } });
-          toast('Protections enregistrées'); select(d.id); } catch (e) { fail(e); } } }, 'Enregistrer les protections')),
-    h('div', { class: 'label' }, `Liste noire (${p.blacklist.length}/${p.maxBlacklist}) : ces membres ne peuvent pas se vérifier`),
-    h('div', { class: 'row' }, bl,
-      h('button', { class: 'btn ghost', onclick: async () => {
-        try { await api(`/guilds/${d.id}/blacklist`, { method: 'POST', body: { userId: bl.value } });
-          toast('Ajouté à la liste noire'); select(d.id); } catch (e) { fail(e); } } }, 'Ajouter')),
-    p.blacklist.length
-      ? h('div', { class: 'tablewrap' }, h('table', {},
-        h('thead', {}, h('tr', {}, h('th', {}, 'ID'), h('th', {}, ''))),
-        h('tbody', {}, p.blacklist.map((id) => h('tr', {},
-          h('td', { class: 'mono' }, id),
-          h('td', { class: 'act' }, h('button', { class: 'btn danger', onclick: async () => {
-            try { await api(`/guilds/${d.id}/blacklist/${id}`, { method: 'DELETE' }); toast('Retiré de la liste noire'); select(d.id); } catch (e) { fail(e); } } }, 'Retirer')))))))
-      : h('p', { class: 'empty' }, 'Liste noire vide.'));
 }
 
 // ---------- page de vérification personnalisable ----------
@@ -456,25 +606,14 @@ function pageCard(d) {
         h('p', { class: 'hint fine' }, 'L\'aperçu se met à jour pendant la saisie ; il faut enregistrer pour l\'appliquer.'))));
 }
 
-function noBotView(g) {
-  shell([h('div', { class: 'head' }, h('h1', {}, g.name)),
-    card(null,
-      me.bots.length
-        ? [h('p', { class: 'hint' }, 'Aucun de tes bots n\'est dans ce serveur. Invite-en un :'),
-           h('div', { class: 'row' }, me.bots.map((b) => h('a', { class: 'btn', href: b.inviteUrl, target: '_blank', rel: 'noopener' }, `Inviter ${b.name}`)))]
-        : [h('p', { class: 'hint' }, 'Tu n\'as pas encore de bot.'),
-           h('button', { class: 'btn', onclick: () => select('bots') }, 'Ajouter mon bot')])]);
-}
-
 // ---------- actions ----------
+const TOP = { dash: dashView, servers: serversView, migrations: migrationsView, bots: botsView, members: membersView, account: accountView };
 async function select(id) {
   clearInterval(poll);
   current = id;
-  if (id === 'bots') { guildTabFor = null; return botsView(); }
-  if (id === 'dash') return dashView();
-  if (id === 'servers') { guildTabFor = null; return serversView(); }
+  if (TOP[id]) { guildTabFor = null; return TOP[id](); }
   const g = me.guilds.find((x) => x.id === id);
-  if (!g.botIn) return noBotView(g);
+  if (!g || !g.botIn) return select('servers');
   try {
     const m = document.querySelector('main'); if (m) m.append(h('p', { class: 'loading' }, 'Chargement…'));
     detail = await api(`/guilds/${id}`);
@@ -484,7 +623,7 @@ async function select(id) {
 
 async function removeMember(d, m) {
   if (!confirm(`Retirer ${m.username || m.id} de la sauvegarde ?`)) return;
-  try { await api(`/guilds/${d.id}/members/${m.id}`, { method: 'DELETE' }); toast('Membre retiré'); select(d.id); }
+  try { await api(`/guilds/${d.id}/members/${m.id}`, { method: 'DELETE' }); toast('Membre retiré'); select(current); }
   catch (e) { toast(e.message, true); }
 }
 
@@ -500,7 +639,7 @@ async function startRestore(d, source, btn, bar, stat) {
         stat.textContent = `${j.done} / ${j.total} traités · ${j.added} ajoutés · ${j.already} déjà présents · ${j.failed} échecs`;
         if (j.status !== 'running') {
           clearInterval(poll);
-          toast(j.status === 'done' ? 'Restauration terminée' : 'La restauration a échoué', j.status !== 'done');
+          toast(j.status === 'done' ? 'Migration terminée' : 'La migration a échoué', j.status !== 'done');
           btn.disabled = false;
         }
       } catch (e) { clearInterval(poll); fail(e); }
@@ -508,21 +647,21 @@ async function startRestore(d, source, btn, bar, stat) {
   } catch (e) { btn.disabled = false; toast(e.message, true); }
 }
 
-async function scheduleRestore(d, source, input) {
+async function scheduleRestore(d, source, input, m) {
   if (!source) return;
   const runAt = input.value ? new Date(input.value).getTime() : NaN; // datetime-local = heure locale du navigateur
   if (!Number.isFinite(runAt)) return toast('Choisis une date et une heure.', true);
   if (!confirm(`Planifier l'ajout des membres le ${stamp(runAt)} ?`)) return;
   try {
     await api(`/guilds/${d.id}/restore/schedule`, { method: 'POST', body: { source, runAt } });
-    toast('Restauration planifiée');
-    select(d.id);
+    toast('Migration planifiée');
+    m.close(); select(current);
   } catch (e) { fail(e); }
 }
 
 async function cancelSchedule(d, x) {
-  if (!confirm(`Annuler la restauration prévue le ${stamp(x.run_at)} ?`)) return;
-  try { await api(`/guilds/${d.id}/restore/schedule/${x.id}`, { method: 'DELETE' }); toast('Planification annulée'); select(d.id); }
+  if (!confirm(`Annuler la migration prévue le ${stamp(x.run_at)} ?`)) return;
+  try { await api(`/guilds/${d.id}/restore/schedule/${x.id}`, { method: 'DELETE' }); toast('Planification annulée'); select(current); }
   catch (e) { fail(e); }
 }
 
