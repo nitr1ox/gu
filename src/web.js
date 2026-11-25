@@ -113,6 +113,7 @@ exports.startWeb = () => {
 
   app.use('/v1', require('./api')());
   app.use(require('./panel')());
+  app.get(['/docs', '/docs/'], (req, res) => res.sendFile(path.join(__dirname, '..', 'site', 'docs.html')));
   app.use(express.static(path.join(__dirname, '..', 'site'), { index: 'index.html', extensions: false }));
   app.listen(process.env.PORT || 3000, () => console.log('Web prêt'));
 };
