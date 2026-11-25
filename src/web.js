@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const db = require('./db');
 const { encrypt } = require('./crypto');
@@ -118,6 +119,7 @@ exports.startWeb = () => {
 
   app.use('/v1', require('./api')());
   app.use(require('./panel')());
-  app.get('/', (_req, res) => res.redirect('/panel/'));
+  // Page d'accueil publique (site/index.html + home.css)
+  app.use(express.static(path.join(__dirname, '..', 'site'), { index: 'index.html', extensions: false }));
   app.listen(process.env.PORT || 3000, () => console.log('Web prêt'));
 };
