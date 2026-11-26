@@ -109,3 +109,71 @@ h3 { font-size: 1.05rem; font-weight: 650; margin-bottom: .5rem; }
   .bar i { animation: none; }
   .btn { transition: none; }
 }
+
+
+/* ==========================================================
+   Fluidité & effets
+   ========================================================== */
+:root { --ease: cubic-bezier(.22, 1, .36, 1); --spring: cubic-bezier(.34, 1.56, .64, 1); }
+::selection { background: rgba(210, 162, 60, .35); }
+body {
+  background:
+    radial-gradient(60rem 32rem at 80% -8%, rgba(210, 162, 60, .07), transparent 60%),
+    radial-gradient(48rem 28rem at -10% 40%, rgba(255, 255, 255, .03), transparent 60%),
+    var(--bg);
+}
+
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* en-tête */
+.top { transition: background .35s var(--ease), border-color .35s var(--ease), padding .35s var(--ease); animation: rise .6s var(--ease) both; }
+.top.scrolled { background: rgba(0, 0, 0, .92); border-bottom-color: var(--line-strong); }
+.top nav a:not(.btn) { position: relative; transition: color .25s var(--ease); }
+.top nav a:not(.btn)::after, .foot nav a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 1px; background: var(--ink); transform: scaleX(0); transform-origin: left; transition: transform .35s var(--ease); }
+.foot nav a { position: relative; transition: color .25s var(--ease); }
+.top nav a:not(.btn):hover::after, .foot nav a:hover::after { transform: scaleX(1); }
+.brand .logo { transition: transform .4s var(--spring); }
+.brand:hover .logo { transform: rotate(-8deg) scale(1.08); }
+
+/* boutons */
+.btn { transition: background .25s var(--ease), border-color .25s var(--ease), transform .25s var(--spring), box-shadow .25s var(--ease); }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255, 255, 255, .12); }
+.btn.ghost:hover { box-shadow: none; }
+.btn:active { transform: translateY(0) scale(.97); transition-duration: .08s; }
+
+/* hero : entrée en cascade */
+.hero-copy > * { animation: rise .8s var(--ease) both; }
+.hero-copy > *:nth-child(1) { animation-delay: .1s; }
+.hero-copy > *:nth-child(2) { animation-delay: .2s; }
+.hero-copy > *:nth-child(3) { animation-delay: .3s; }
+.hero-copy > *:nth-child(4) { animation-delay: .4s; }
+.mock { animation: rise 1s .3s var(--ease) both, floaty 7s ease-in-out 1.4s infinite; box-shadow: 0 30px 80px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255, 255, 255, .03); transition: border-color .4s var(--ease); }
+.mock:hover { border-color: #555; }
+.mock-log li { animation: rise .6s var(--ease) both; }
+.mock-log li:nth-child(1) { animation-delay: .9s; }
+.mock-log li:nth-child(2) { animation-delay: 1.05s; }
+.mock-log li:nth-child(3) { animation-delay: 1.2s; }
+.mock-log .dot.ok { animation: blink 2.2s ease-in-out infinite; }
+.mock-stats div { transition: border-color .3s var(--ease), transform .35s var(--spring); }
+.mock-stats div:hover { border-color: var(--line-strong); transform: translateY(-2px); }
+
+/* apparition au scroll (classes ajoutées par home.js) */
+.rv { opacity: 0; transform: translateY(24px); transition: opacity .8s var(--ease), transform .8s var(--ease); transition-delay: var(--d, 0s); will-change: opacity, transform; }
+.rv.in { opacity: 1; transform: none; will-change: auto; }
+
+/* étapes & fonctionnalités */
+.steps li, .features div, .checks li { transition: border-color .35s var(--ease), transform .4s var(--ease); }
+.steps li:hover, .features div:hover { border-top-color: var(--brass); transform: translateY(-3px); }
+.steps li::before { transition: transform .4s var(--spring); transform-origin: left; }
+.steps li:hover::before { transform: scale(1.15); }
+
+/* barre de progression du scroll */
+.progress { position: fixed; top: 0; left: 0; height: 2px; width: 100%; background: var(--brass); transform: scaleX(0); transform-origin: left; z-index: 20; pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rv { opacity: 1; transform: none; transition: none; }
+  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .progress { display: none; }
+}

@@ -81,7 +81,7 @@
       <section id="vue-d-ensemble">
         <h2>Vue d'ensemble</h2>
         <ul>
-          <li><b>URL de base</b> : <code>https://ton-domaine.com/v1</code></li>
+          <li><b>URL de base</b> : <code>https://ak47bot.fr/v1</code></li>
           <li><b>Format</b> : JSON en entrée et en sortie (<code>Content-Type: application/json</code> pour les requêtes avec corps).</li>
           <li><b>Taille maximale d'un corps</b> : 10 Ko.</li>
           <li><b>Cache</b> : les réponses ne sont jamais mises en cache (<code>Cache-Control: no-store</code>).</li>
@@ -158,8 +158,8 @@
         <p><code>201</code> si le panel vient d'être créé, <code>200</code> sinon :</p>
         <pre><code>{
   "created": true,
-  "panel_url": "https://ton-domaine.com/panel/",
-  "redirect_uri": "https://ton-domaine.com/callback",
+  "panel_url": "https://ak47bot.fr/panel/",
+  "redirect_uri": "https://ak47bot.fr/callback",
   "has_bot": false,
   "bots": [],
   "totals": { "bots": 0, "saved_members": 0 }
@@ -171,7 +171,7 @@
         <h3><span class="method get">GET</span> <code>/panels/:userId</code></h3>
         <p>Renvoie les bots, serveurs et statistiques d'un utilisateur.</p>
         <pre><code>{
-  "panel_url": "https://ton-domaine.com/panel/",
+  "panel_url": "https://ak47bot.fr/panel/",
   "bots": [
     {
       "id": "123456789012345678",
@@ -319,32 +319,32 @@
       <section id="exemples">
         <h2>Exemples</h2>
         <p><b>Créer un panel (clé client)</b></p>
-        <pre><code>curl -X POST https://ton-domaine.com/v1/panels \
+        <pre><code>curl -X POST https://ak47bot.fr/v1/panels \
   -H "Authorization: Bearer secret1" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"123456789012345678","username":"pseudo"}'</code></pre>
 
         <p><b>Statistiques d'un serveur (clé personnelle)</b></p>
-        <pre><code>curl "https://ton-domaine.com/v1/guilds/987654321098765432/stats" \
+        <pre><code>curl "https://ak47bot.fr/v1/guilds/987654321098765432/stats" \
   -H "Authorization: Bearer ak_xxxxxxxx..."</code></pre>
 
         <p><b>Lancer un ajout de membres, puis suivre le job</b></p>
-        <pre><code>curl -X POST https://ton-domaine.com/v1/guilds/987654321098765432/members/add \
+        <pre><code>curl -X POST https://ak47bot.fr/v1/guilds/987654321098765432/members/add \
   -H "Authorization: Bearer secret1" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"123456789012345678","source":"111111111111111111"}'
 
-curl "https://ton-domaine.com/v1/jobs/abc123?user_id=123456789012345678" \
+curl "https://ak47bot.fr/v1/jobs/abc123?user_id=123456789012345678" \
   -H "Authorization: Bearer secret1"</code></pre>
 
         <p><b>Planifier pour le 1er décembre à 20 h (heure de Paris)</b></p>
-        <pre><code>curl -X POST https://ton-domaine.com/v1/guilds/987654321098765432/members/schedule \
+        <pre><code>curl -X POST https://ak47bot.fr/v1/guilds/987654321098765432/members/schedule \
   -H "Authorization: Bearer secret1" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"123456789012345678","source":"all","run_at":"2026-12-01T20:00:00+01:00"}'</code></pre>
 
         <p><b>Node.js</b></p>
-        <pre><code>const res = await fetch('https://ton-domaine.com/v1/guilds/987654321098765432/stats?user_id=123456789012345678', {
+        <pre><code>const res = await fetch('https://ak47bot.fr/v1/guilds/987654321098765432/stats?user_id=123456789012345678', {
   headers: { Authorization: 'Bearer secret1' },
 });
 const data = await res.json();
@@ -376,5 +376,6 @@ console.log(data.saved_members);</code></pre>
       <a href="/docs">Documentation</a>
     </nav>
   </footer>
+  <script src="/home.js" defer></script>
 </body>
 </html>
