@@ -198,7 +198,6 @@ input[type=number] { width: 100%; max-width: 10rem; background: var(--surface); 
 .back { margin-bottom: .75rem; }
 @media (max-width: 760px) { .rail .nav-top { display: flex; overflow-x: auto; flex: none; } }
 
-/* ---- refonte façon RestoreCord ---- */
 .svg { display: inline-grid; place-items: center; flex: none; color: var(--rail-muted); }
 .srv[aria-current=true] .svg, .srv:hover .svg { color: var(--rail-ink); }
 .btn .svg { color: inherit; }
@@ -257,3 +256,137 @@ input[type=number] { width: 100%; max-width: 10rem; background: var(--surface); 
 
 .filters { margin-bottom: 1rem; }
 .filters select { flex: 0 1 14rem; }
+
+
+/* ==========================================================
+   Fluidité & effets
+   ========================================================== */
+:root {
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+}
+html { scroll-behavior: smooth; }
+body {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, rgba(210, 162, 60, .06), transparent 60%),
+    radial-gradient(50rem 28rem at -10% 110%, rgba(255, 255, 255, .035), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+::selection { background: rgba(210, 162, 60, .35); }
+
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(92, 193, 131, .45); } 100% { box-shadow: 0 0 0 9px rgba(92, 193, 131, 0); } }
+@keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes sheen { to { background-position: -200% 0; } }
+
+/* apparition en cascade à chaque changement de vue */
+main > * { animation: rise .55s var(--ease) both; }
+main > *:nth-child(2) { animation-delay: .05s; }
+main > *:nth-child(3) { animation-delay: .1s; }
+main > *:nth-child(4) { animation-delay: .15s; }
+main > *:nth-child(5) { animation-delay: .2s; }
+main > *:nth-child(n+6) { animation-delay: .25s; }
+.srvgrid > *, .stats > * { animation: rise .55s var(--ease) both; }
+.srvgrid > *:nth-child(2), .stats > *:nth-child(2) { animation-delay: .06s; }
+.srvgrid > *:nth-child(3), .stats > *:nth-child(3) { animation-delay: .12s; }
+.srvgrid > *:nth-child(4), .stats > *:nth-child(4) { animation-delay: .18s; }
+.srvgrid > *:nth-child(n+5), .stats > *:nth-child(n+5) { animation-delay: .24s; }
+.rail { animation: fadein .6s var(--ease) both; }
+.rail .srv { animation: rise .45s var(--ease) both; }
+.rail .srv:nth-child(2) { animation-delay: .04s; }
+.rail .srv:nth-child(3) { animation-delay: .08s; }
+.rail .srv:nth-child(4) { animation-delay: .12s; }
+.rail .srv:nth-child(n+5) { animation-delay: .16s; }
+tbody tr { animation: fadein .4s var(--ease) both; }
+
+/* connexion */
+.login > * { animation: rise .7s var(--ease) both; }
+.login > *:nth-child(2) { animation-delay: .08s; }
+.login > *:nth-child(3) { animation-delay: .16s; }
+.login > *:nth-child(4) { animation-delay: .24s; }
+.login .logo { animation: rise .7s var(--ease) both, floaty 5s ease-in-out 1s infinite; box-shadow: 0 0 40px rgba(255, 255, 255, .12); }
+
+/* boutons */
+.btn { position: relative; overflow: hidden; transition: background .25s var(--ease), border-color .25s var(--ease), transform .25s var(--spring), box-shadow .25s var(--ease), color .25s var(--ease); }
+.btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255, 255, 255, .08); }
+.btn.ghost:hover:not(:disabled) { box-shadow: none; border-color: var(--muted); }
+.btn.danger:hover:not(:disabled), .btn.sm:hover:not(:disabled) { box-shadow: none; }
+.btn:active:not(:disabled) { transform: translateY(0) scale(.96); transition-duration: .08s; }
+.btn.green:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(34, 160, 90, .35); }
+.btn .rip { position: absolute; border-radius: 50%; background: currentColor; opacity: .22; transform: scale(0); pointer-events: none; animation: rip .6s var(--ease) forwards; }
+@keyframes rip { to { transform: scale(1); opacity: 0; } }
+
+/* champs */
+select, input[type=text], input[type=password], input[type=datetime-local], input[type=number], textarea { transition: border-color .25s var(--ease), box-shadow .25s var(--ease), background .25s var(--ease); }
+select:focus, input:focus, textarea:focus { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(210, 162, 60, .16); }
+
+/* cartes : élévation + halo qui suit le curseur */
+.card, .stat, .srvcard { position: relative; transition: border-color .3s var(--ease), transform .35s var(--ease), background .3s var(--ease), box-shadow .35s var(--ease); }
+.card::before, .stat::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+  background: radial-gradient(18rem circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, .06), transparent 60%);
+  transition: opacity .35s var(--ease);
+}
+.card:hover::before, .stat:hover::before { opacity: 1; }
+.card:hover, .stat:hover { border-color: var(--line-strong); }
+.srvcard:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0, 0, 0, .6); border-color: #444; }
+.stat:hover { transform: translateY(-2px); }
+
+/* navigation latérale */
+.srv { position: relative; transition: background .25s var(--ease), transform .25s var(--ease), opacity .25s var(--ease), color .25s var(--ease); }
+.srv:hover { transform: translateX(3px); }
+.srv:active { transform: scale(.98); }
+.srv[aria-current=true]::before { content: ""; position: absolute; left: -.5rem; top: 22%; bottom: 22%; width: 3px; border-radius: 0 3px 3px 0; background: var(--ink); animation: pop .35s var(--spring) both; }
+.srv .svg, .ico { transition: transform .3s var(--spring), color .25s var(--ease), background .25s var(--ease); }
+.srv:hover .svg { transform: scale(1.12); }
+.srv:hover .ico { transform: scale(1.06); }
+.who button { transition: color .2s, background .2s; }
+
+/* onglets */
+.tab { transition: color .25s var(--ease), background .25s var(--ease), border-color .3s var(--ease); }
+.tab .count { transition: background .25s var(--ease), color .25s var(--ease); }
+.segbtn { transition: background .3s var(--ease), color .25s var(--ease), box-shadow .3s var(--ease); }
+.segbtn:hover { color: var(--ink); }
+
+/* tableaux */
+tbody tr { transition: background .2s var(--ease); }
+
+/* badges, indicateurs */
+.badge, .pill { transition: background .3s, color .3s; }
+.dotlive.on { animation: pulse 2s ease-out infinite; }
+.srv .dot { animation: pulse 2.4s ease-out infinite; }
+.srv.off .dot { animation: none; }
+
+/* barres de progression */
+.bar i { transition: width .7s var(--ease); position: relative; overflow: hidden; }
+.bar i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .25), transparent); background-size: 200% 100%; animation: sheen 1.8s linear infinite; }
+.bar i[style*="width: 0%"]::after, .bar i:not([style])::after { display: none; }
+.bar2 i { transition: width .6s var(--ease); }
+
+/* interrupteurs */
+.switch { transition: background .3s var(--ease), box-shadow .3s var(--ease); }
+.switch::after { transition: transform .35s var(--spring); box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.switch:active::after { width: 1.3rem; }
+.switch:checked { box-shadow: 0 0 14px rgba(34, 160, 90, .35); }
+.switch:checked:active::after { transform: translateX(.85rem); }
+.toggle { transition: background .2s; }
+
+/* toast */
+#toast { transform: translate(-50%, 16px) scale(.96); transition: opacity .3s var(--ease), transform .45s var(--spring); backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+#toast.show { transform: translate(-50%, 0) scale(1); }
+
+/* modale */
+.overlay { animation: fadein .25s var(--ease) both; backdrop-filter: blur(6px); transition: opacity .2s var(--ease); }
+.modal { animation: pop .4s var(--spring) both; box-shadow: 0 30px 80px rgba(0, 0, 0, .7); transition: transform .2s var(--ease), opacity .2s var(--ease); }
+.overlay.out { opacity: 0; pointer-events: none; }
+.overlay.out .modal { transform: translateY(8px) scale(.97); opacity: 0; }
+
+.loading { animation: fadein .6s .2s var(--ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}

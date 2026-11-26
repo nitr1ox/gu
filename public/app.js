@@ -94,7 +94,7 @@ function loginView() {
 function modal(title, sub) {
   const body = h('div', { class: 'modal-body' });
   const onKey = (e) => { if (e.key === 'Escape') close(); };
-  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); clearInterval(poll); };
+  const close = () => { if (ov.classList.contains('out')) return; document.removeEventListener('keydown', onKey); clearInterval(poll); ov.classList.add('out'); setTimeout(() => ov.remove(), 200); };
   const ov = h('div', { class: 'overlay', onmousedown: (e) => { if (e.target === ov) close(); } },
     h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
       h('div', { class: 'modal-head' }, h('div', {}, h('h2', {}, title), sub && h('p', { class: 'hint', style: 'margin:.2rem 0 0' }, sub)),
