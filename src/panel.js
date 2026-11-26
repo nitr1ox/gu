@@ -96,6 +96,20 @@ module.exports = () => {
     next();
   };
 
+  // Refuse l'accès si le serveur est déjà géré par un autre bot encore présent dessus
+  const ownGuard = async (req, res, next) => {
+    try {
+      const cfg = await db.getGuild(req.guild.id);
+      if (cfg?.bot_id && cfg.bot_id !== req.bot.id && manager.get(cfg.bot_id)?.client.guilds.cache.has(req.guild.id)) {
+        return res.status(409).json({ error: 'Ce serveur est déjà géré par un autre bot.' });
+      }
+      next();
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Erreur interne.' });
+    }
+  };
+
   const wrap = (fn) => (req, res) => fn(req, res).catch((e) => {
     console.error(e);
     res.status(500).json({ error: 'Erreur interne.' });
@@ -183,7 +197,7 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  api.get('/guilds/:id', guildGuard, wrap(async (req, res) => {
+  api.get('/guilds/:id', guildGuard, ownGuard, wrap(async (req, res) => {
     const guild = req.guild;
     await guild.roles.fetch();
     await guild.channels.fetch();
@@ -245,7 +259,7 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  api.post('/guilds/:id/page', guildGuard, wrap(async (req, res) => {
+  api.post('/guilds/:id/page', guildGuard, ownGuard, wrap(async (req, res) => {
     let page;
     try { page = verifypage.sanitize(req.body); }
     catch (e) { return res.status(400).json({ error: e.message }); }
@@ -263,7 +277,7 @@ module.exports = () => {
       { verify_page: { ...(cfg?.verify_page || {}), logo_v: v }, name: req.guild.name, bot_id: req.bot.id }, [req.session.user_id]);
   };
 
-  api.put('/guilds/:id/page/logo', guildGuard, express.raw({ type: logoTypes, limit: verifypage.LOGO_MAX }), wrap(async (req, res) => {
+  api.put('/guilds/:id/page/logo', guildGuard, ownGuard, express.raw({ type: logoTypes, limit: verifypage.LOGO_MAX }), wrap(async (req, res) => {
     const buf = req.body;
     if (!Buffer.isBuffer(buf) || !buf.length) return res.status(400).json({ error: 'Image PNG, JPEG, GIF ou WebP de 200 Ko maximum.' });
     const type = verifypage.sniffImage(buf);
@@ -274,14 +288,14 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  api.delete('/guilds/:id/page/logo', guildGuard, wrap(async (req, res) => {
+  api.delete('/guilds/:id/page/logo', guildGuard, ownGuard, wrap(async (req, res) => {
     await db.deleteLogo(req.guild.id);
     await setLogoVersion(req, null);
     await audit.log(req.guild.id, actorOf(req), 'settings.page', { logo: 'retiré' });
     res.json({ ok: true });
   }));
 
-  api.post('/guilds/:id/protection', guildGuard, wrap(async (req, res) => {
+  api.post('/guilds/:id/protection', guildGuard, ownGuard, wrap(async (req, res) => {
     let prot;
     try { prot = protection.sanitize(req.body); }
     catch (e) { return res.status(400).json({ error: e.message }); }
@@ -290,7 +304,7 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  api.post('/guilds/:id/blacklist', guildGuard, sensitiveLimit, wrap(async (req, res) => {
+  api.post('/guilds/:id/blacklist', guildGuard, ownGuard, sensitiveLimit, wrap(async (req, res) => {
     const uid = String(req.body.userId || '').trim().replace(/^<@!?(\d+)>$/, '$1');
     if (!protection.isSnowflake(uid)) return res.status(400).json({ error: 'ID Discord invalide (17 à 20 chiffres).' });
     if (uid === req.session.user_id || uid === req.guild.ownerId) return res.status(400).json({ error: 'Impossible de blacklister le propriétaire ou toi-même.' });
@@ -305,7 +319,7 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  api.delete('/guilds/:id/blacklist/:uid', guildGuard, wrap(async (req, res) => {
+  api.delete('/guilds/:id/blacklist/:uid', guildGuard, ownGuard, wrap(async (req, res) => {
     const uid = String(req.params.uid);
     if (!protection.isSnowflake(uid)) return res.status(400).json({ error: 'ID invalide.' });
     await db.removeBlacklist(req.guild.id, uid);
@@ -313,7 +327,7 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  api.post('/guilds/:id/announce', guildGuard, wrap(async (req, res) => {
+  api.post('/guilds/:id/announce', guildGuard, ownGuard, wrap(async (req, res) => {
     const cfg = await db.getGuild(req.guild.id);
     if (!cfg?.role_id) return res.status(400).json({ error: 'Choisis d\'abord un rôle.' });
     const channel = req.guild.channels.cache.get(String(req.body.channelId));
@@ -324,7 +338,7 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  api.post('/guilds/:id/alerts', guildGuard, wrap(async (req, res) => {
+  api.post('/guilds/:id/alerts', guildGuard, ownGuard, wrap(async (req, res) => {
     const raw = String(req.body.channelId || '');
     let channel = null;
     if (raw) {
@@ -344,7 +358,7 @@ module.exports = () => {
     res.json({ ok: true });
   }));
 
-  api.delete('/guilds/:id/members/:uid', guildGuard, wrap(async (req, res) => {
+  api.delete('/guilds/:id/members/:uid', guildGuard, ownGuard, wrap(async (req, res) => {
     const uid = String(req.params.uid);
     await db.deleteMember(uid, req.guild.id);
     const actor = actorOf(req);
@@ -374,7 +388,7 @@ module.exports = () => {
     }
   }));
 
-  api.delete('/guilds/:id/restore/schedule/:sid', guildGuard, wrap(async (req, res) => {
+  api.delete('/guilds/:id/restore/schedule/:sid', guildGuard, ownGuard, wrap(async (req, res) => {
     try {
       await schedule.cancel({ guildId: req.guild.id, scheduleId: req.params.sid, actor: actorOf(req) });
       res.json({ ok: true });
